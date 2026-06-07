@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  BOOKED
+  PAID
+  LOST
+  ARCHIVED
+}
+
+enum ReceiptStatus {
+  NEW
+  APPROVED
+  REJECTED
+}
+
+model Client {
+  id             String   @id @default(cuid())
+  projectKey     String   @default("mbpg")
+  telegramId     BigInt
+  username       String?
+  firstName      String?
+  lastName       String?
+  languageCode   String   @default("ru")
+  phone          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  leads          Lead[]
+  receipts       Receipt[]
+
+  @@unique([projectKey, telegramId])
+  @@index([projectKey])
+}
+
+model Lead {
+  id            String     @id @default(cuid())
+  projectKey    String     @default("mbpg")
+  clientId      String
+  client        Client     @relation(fields: [clientId], references: [id])
+  parentName    String
+  phone         String
+  childName     String
+  childAge      String
+  direction     String
+  serviceSlug   String?
+  branch        String
+  preferredTime String?
+  comment       String?
+  status        LeadStatus @default(NEW)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  receipts      Receipt[]
+
+  @@index([projectKey, createdAt])
+}
+
+model Receipt {
+  id          String        @id @default(cuid())
+  projectKey  String        @default("mbpg")
+  clientId    String
+  client      Client        @relation(fields: [clientId], references: [id])
+  leadId      String?
+  lead        Lead?         @relation(fields: [leadId], references: [id])
+  fileName    String
+  mimeType    String
+  size        Int
+  data        Bytes
+  status      ReceiptStatus @default(NEW)
+  adminNote   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([projectKey, createdAt])
+}
