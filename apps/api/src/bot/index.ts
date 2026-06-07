@@ -8,6 +8,7 @@ const webhookPath = "/telegram/webhook";
 
 bot.command("start", async (ctx) => {
   const from = ctx.from;
+  let isFirstStart = false;
   if (from) {
     const existingClient = await prisma.client.findUnique({
       where: {
@@ -17,6 +18,7 @@ bot.command("start", async (ctx) => {
         }
       }
     });
+    isFirstStart = !existingClient?.welcomeSentAt;
     await prisma.client.upsert({
       where: {
         projectKey_telegramId: {
@@ -46,7 +48,10 @@ bot.command("start", async (ctx) => {
   }
 
   const keyboard = new InlineKeyboard().webApp("Открыть MBPG", env.webAppUrl);
-  await ctx.reply("Здравствуйте! Это MBPG в Батуми: детский бассейн, спортивные занятия и массаж. Нажмите кнопку ниже, чтобы выбрать направление, посмотреть цены и записаться на пробное занятие.", {
+  const message = isFirstStart
+    ? "Здравствуйте! Это MBPG в Батуми: детский бассейн, спортивные занятия и массаж. Нажмите кнопку ниже, чтобы выбрать направление, посмотреть цены и записаться на пробное занятие."
+    : "С возвращением в MBPG. Нажмите кнопку ниже, чтобы открыть Mini App, посмотреть услуги, цены или записаться.";
+  await ctx.reply(message, {
     reply_markup: keyboard
   });
 });
