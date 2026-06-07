@@ -1,0 +1,6 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "deploy": {
+    "startCommand": "npm run prisma:migrate && npm run start --workspace=@mbpg/api"
+  }
+}
