@@ -9,6 +9,7 @@ const webhookPath = "/telegram/webhook";
 bot.command("start", async (ctx) => {
   const from = ctx.from;
   let isFirstStart = false;
+
   if (from) {
     const existingClient = await prisma.client.findUnique({
       where: {
@@ -18,7 +19,9 @@ bot.command("start", async (ctx) => {
         }
       }
     });
+
     isFirstStart = !existingClient?.welcomeSentAt;
+
     await prisma.client.upsert({
       where: {
         projectKey_telegramId: {
@@ -47,11 +50,37 @@ bot.command("start", async (ctx) => {
     });
   }
 
-  const keyboard = new InlineKeyboard().webApp("Открыть MBPG", env.webAppUrl);
+  const keyboard = new InlineKeyboard()
+    .webApp("Открыть Mini App", env.webAppUrl)
+    .row()
+    .url("WhatsApp", "https://wa.me/995591990894")
+    .url("Instagram", "https://www.instagram.com/mybabypool");
+
+  const name = from?.first_name ? `, ${from.first_name}` : "";
   const message = isFirstStart
-    ? "Здравствуйте! Это MBPG в Батуми: детский бассейн, спортивные занятия и массаж. Нажмите кнопку ниже, чтобы выбрать направление, посмотреть цены и записаться на пробное занятие."
-    : "С возвращением в MBPG. Нажмите кнопку ниже, чтобы открыть Mini App, посмотреть услуги, цены или записаться.";
+    ? [
+        `<b>Здравствуйте${name}! Добро пожаловать в MBPG.</b>`,
+        "",
+        "MBPG - детский бассейн, гимнастика и спортивные занятия в Батуми.",
+        "Мы помогаем детям расти активными, здоровыми и уверенными через воду, движение и заботу.",
+        "",
+        "<b>Что можно сделать в приложении:</b>",
+        "• выбрать направление Pool или Gym;",
+        "• посмотреть услуги, цены и адреса;",
+        "• записаться на пробное занятие;",
+        "• отправить чек об оплате;",
+        "• быстро связаться с администратором.",
+        "",
+        "<b>Нажмите кнопку «Открыть Mini App» ниже.</b>"
+      ].join("\n")
+    : [
+        `<b>С возвращением${name}!</b>`,
+        "",
+        "Откройте MBPG Mini App, чтобы посмотреть услуги, цены, записаться или отправить чек."
+      ].join("\n");
+
   await ctx.reply(message, {
+    parse_mode: "HTML",
     reply_markup: keyboard
   });
 });
@@ -73,6 +102,16 @@ export async function startBot() {
   }
 
   const webhookUrl = `${env.apiPublicUrl}${webhookPath}`;
+
+  await bot.api.setMyName("MBPG");
+  await bot.api.setMyShortDescription("Детский бассейн, гимнастика, спорт и массаж в Батуми.");
+  await bot.api.setMyDescription(
+    [
+      "MBPG - детский бассейн и спортивные занятия в Батуми.",
+      "",
+      "Откройте Mini App, чтобы выбрать Pool или Gym, посмотреть цены и записаться на пробное занятие."
+    ].join("\n")
+  );
   await bot.api.setMyCommands([
     { command: "start", description: "Открыть MBPG Mini App" },
     { command: "admin", description: "Открыть админку" }
