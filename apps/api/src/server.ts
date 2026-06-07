@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { env } from "./env.js";
 import { attachBot, startBot } from "./bot/index.js";
+import { startReminderWorker } from "./bot/reminders.js";
 import { clientsRouter } from "./routes/clients.js";
 import { leadsRouter } from "./routes/leads.js";
 import { receiptsRouter } from "./routes/receipts.js";
@@ -41,4 +42,5 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
 app.listen(env.port, async () => {
   console.log(`MBPG API listening on ${env.port}`);
   await startBot();
+  startReminderWorker();
 });

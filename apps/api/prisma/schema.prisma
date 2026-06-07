@@ -22,6 +22,13 @@ enum ReceiptStatus {
   REJECTED
 }
 
+enum ReminderStatus {
+  SCHEDULED
+  SENT
+  FAILED
+  CANCELED
+}
+
 model Client {
   id             String   @id @default(cuid())
   projectKey     String   @default("mbpg")
@@ -31,10 +38,14 @@ model Client {
   lastName       String?
   languageCode   String   @default("ru")
   phone          String?
+  notes          String?
+  lastSeenAt     DateTime @default(now())
+  welcomeSentAt  DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   leads          Lead[]
   receipts       Receipt[]
+  reminders      Reminder[]
 
   @@unique([projectKey, telegramId])
   @@index([projectKey])
@@ -58,6 +69,7 @@ model Lead {
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   receipts      Receipt[]
+  reminders     Reminder[]
 
   @@index([projectKey, createdAt])
 }
@@ -77,6 +89,39 @@ model Receipt {
   adminNote   String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+
+  @@index([projectKey, createdAt])
+}
+
+model Reminder {
+  id          String         @id @default(cuid())
+  projectKey  String         @default("mbpg")
+  clientId    String
+  client      Client         @relation(fields: [clientId], references: [id])
+  leadId      String?
+  lead        Lead?          @relation(fields: [leadId], references: [id])
+  type        String
+  message     String
+  dueAt       DateTime
+  status      ReminderStatus @default(SCHEDULED)
+  sentAt      DateTime?
+  error       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([projectKey, status, dueAt])
+}
+
+model Broadcast {
+  id          String    @id @default(cuid())
+  projectKey  String    @default("mbpg")
+  title       String
+  message     String
+  audience    String    @default("all")
+  sentCount   Int       @default(0)
+  failedCount Int       @default(0)
+  createdAt   DateTime  @default(now())
+  sentAt      DateTime?
 
   @@index([projectKey, createdAt])
 }

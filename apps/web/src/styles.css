@@ -414,6 +414,20 @@ a {
   border-radius: 8px;
 }
 
+.crm-item,
+.admin-item:has(.mini-button:only-child) {
+  grid-template-columns: 1fr;
+}
+
+.mini-button {
+  min-height: 42px;
+  padding: 9px 12px;
+  color: var(--ink);
+  background: var(--yellow);
+  border-radius: 8px;
+  font-weight: 800;
+}
+
 @media (max-width: 680px) {
   .screen {
     padding-right: 0;

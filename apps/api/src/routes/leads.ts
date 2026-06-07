@@ -54,6 +54,13 @@ leadsRouter.post("/", async (req, res, next) => {
       ].join("\n")
     );
 
+    await import("../bot/index.js").then(({ bot }) =>
+      bot.api.sendMessage(
+        client.telegramId.toString(),
+        "Ваша заявка MBPG принята. Администратор свяжется с вами, чтобы подтвердить удобное время занятия."
+      )
+    ).catch(() => undefined);
+
     res.status(201).json({ lead });
   } catch (error) {
     next(error);

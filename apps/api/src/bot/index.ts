@@ -1,13 +1,52 @@
 import { Bot, InlineKeyboard, webhookCallback } from "grammy";
 import type { Express } from "express";
 import { env } from "../env.js";
+import { prisma } from "../prisma.js";
 
 export const bot = new Bot(env.botToken);
 const webhookPath = "/telegram/webhook";
 
 bot.command("start", async (ctx) => {
+  const from = ctx.from;
+  if (from) {
+    const existingClient = await prisma.client.findUnique({
+      where: {
+        projectKey_telegramId: {
+          projectKey: env.projectKey,
+          telegramId: BigInt(from.id)
+        }
+      }
+    });
+    await prisma.client.upsert({
+      where: {
+        projectKey_telegramId: {
+          projectKey: env.projectKey,
+          telegramId: BigInt(from.id)
+        }
+      },
+      create: {
+        projectKey: env.projectKey,
+        telegramId: BigInt(from.id),
+        username: from.username,
+        firstName: from.first_name,
+        lastName: from.last_name,
+        languageCode: from.language_code ?? "ru",
+        lastSeenAt: new Date(),
+        welcomeSentAt: new Date()
+      },
+      update: {
+        username: from.username,
+        firstName: from.first_name,
+        lastName: from.last_name,
+        languageCode: from.language_code ?? existingClient?.languageCode ?? "ru",
+        lastSeenAt: new Date(),
+        welcomeSentAt: existingClient?.welcomeSentAt ?? new Date()
+      }
+    });
+  }
+
   const keyboard = new InlineKeyboard().webApp("Открыть MBPG", env.webAppUrl);
-  await ctx.reply("MBPG открыт. Нажмите кнопку ниже, чтобы выбрать Pool или Gym, посмотреть цены и записаться.", {
+  await ctx.reply("Здравствуйте! Это MBPG в Батуми: детский бассейн, спортивные занятия и массаж. Нажмите кнопку ниже, чтобы выбрать направление, посмотреть цены и записаться на пробное занятие.", {
     reply_markup: keyboard
   });
 });

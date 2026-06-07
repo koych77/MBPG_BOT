@@ -26,14 +26,16 @@ export async function upsertClient(user: ReturnType<typeof requireTelegramUser>,
       firstName: user.first_name,
       lastName: user.last_name,
       languageCode,
-      phone
+      phone,
+      lastSeenAt: new Date()
     },
     update: {
       username: user.username,
       firstName: user.first_name,
       lastName: user.last_name,
       languageCode,
-      phone
+      phone,
+      lastSeenAt: new Date()
     }
   });
 }
