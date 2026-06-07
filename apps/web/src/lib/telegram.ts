@@ -1,5 +1,6 @@
 export type TelegramWebApp = {
   initData: string;
+  version?: string;
   initDataUnsafe?: {
     user?: {
       id: number;
@@ -33,4 +34,16 @@ export function getInitData() {
 
 export function getDevTelegramId() {
   return localStorage.getItem("mbpg_dev_telegram_id") ?? "";
+}
+
+export function openFullscreen() {
+  const tg = getTelegram();
+  try {
+    tg?.ready();
+    tg?.expand();
+    tg?.requestFullscreen?.();
+    tg?.disableVerticalSwipes?.();
+  } catch {
+    tg?.expand();
+  }
 }

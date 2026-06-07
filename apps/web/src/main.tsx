@@ -5,14 +5,13 @@ import { AdminPanel } from "./components/AdminPanel";
 import { LanguageSwitch } from "./components/LanguageSwitch";
 import { ServiceCard } from "./components/ServiceCard";
 import { apiForm, apiJson } from "./lib/api";
-import { getTelegram } from "./lib/telegram";
+import { openFullscreen } from "./lib/telegram";
 import { copy, services, type Direction, type Lang } from "./data/i18n";
 import "./styles.css";
 
 type Page = "home" | "direction" | "service" | "book" | "prices" | "contacts" | "receipt";
 
 function App() {
-  const tg = getTelegram();
   const initialLang = (localStorage.getItem("mbpg_lang") as Lang | null) ?? "ru";
   const [lang, setLang] = useState<Lang>(initialLang);
   const [page, setPage] = useState<Page>("home");
@@ -28,10 +27,7 @@ function App() {
   const visibleServices = services.filter((service) => service.direction === direction);
 
   useEffect(() => {
-    tg?.ready();
-    tg?.expand();
-    tg?.requestFullscreen?.();
-    tg?.disableVerticalSwipes?.();
+    openFullscreen();
   }, []);
 
   useEffect(() => {
