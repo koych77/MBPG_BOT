@@ -1,10 +1,14 @@
 import { Router } from "express";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../prisma.js";
 import { env } from "../env.js";
 import { requireAdmin } from "./auth.js";
 
 export const adminRouter = Router();
+
+type LeadWithClient = Prisma.LeadGetPayload<{ include: { client: true } }>;
+type ReceiptWithClientAndLead = Prisma.ReceiptGetPayload<{ include: { client: true; lead: true } }>;
 
 adminRouter.use((req, _res, next) => {
   try {
@@ -37,11 +41,11 @@ adminRouter.get("/overview", async (_req, res, next) => {
 
     res.json({
       stats: { clients, leads, receipts },
-      recentLeads: recentLeads.map((lead) => ({
+      recentLeads: recentLeads.map((lead: LeadWithClient) => ({
         ...lead,
         client: { ...lead.client, telegramId: lead.client.telegramId.toString() }
       })),
-      recentReceipts: recentReceipts.map((receipt) => ({
+      recentReceipts: recentReceipts.map((receipt: ReceiptWithClientAndLead) => ({
         ...receipt,
         data: undefined,
         client: { ...receipt.client, telegramId: receipt.client.telegramId.toString() }
