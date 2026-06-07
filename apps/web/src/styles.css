@@ -13,6 +13,7 @@
   --line: #d9ecf7;
   --surface: #ffffff;
   --shadow: 0 16px 40px rgba(35, 117, 166, 0.12);
+  --tg-top-offset: 78px;
 }
 
 * {
@@ -58,8 +59,8 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: calc(64px + env(safe-area-inset-top));
-  padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
+  min-height: calc(58px + env(safe-area-inset-top) + var(--tg-top-offset));
+  padding: calc(var(--tg-top-offset) + env(safe-area-inset-top)) 24px 12px;
   background: rgba(255, 255, 255, 0.92);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(18px);
@@ -67,6 +68,7 @@ a {
 
 .topbar strong {
   font-size: 20px;
+  line-height: 1;
 }
 
 .language-switch {
@@ -437,6 +439,11 @@ a {
   .hero {
     min-height: 292px;
     padding: 22px 16px;
+  }
+
+  .topbar {
+    padding-right: 24px;
+    padding-left: 24px;
   }
 
   .hero h1 {
