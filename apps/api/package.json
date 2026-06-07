@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "prisma generate && tsc",
+    "build": "prisma generate && tsc && npm run build --workspace=@mbpg/web",
     "start": "prisma migrate deploy && prisma generate && node dist/server.js",
     "lint": "tsc --noEmit",
     "prisma:generate": "prisma generate",

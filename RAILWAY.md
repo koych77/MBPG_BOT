@@ -1,6 +1,6 @@
 # Railway setup
 
-Create one PostgreSQL database for MBPG and connect it to the API service only.
+Use one Railway app service for MBPG. The API service also serves the built Telegram Mini App from `apps/web/dist`, so a separate web service is not required.
 
 ## API service variables
 
@@ -13,19 +13,11 @@ ADMIN_TELEGRAM_IDS=123456789
 PROJECT_KEY=mbpg
 NODE_ENV=production
 BOT_POLLING=false
-WEB_APP_URL=https://your-web-service.up.railway.app
+WEB_APP_URL=https://your-api-service.up.railway.app
 API_PUBLIC_URL=https://your-api-service.up.railway.app
 ```
 
 `DATABASE_URL` must point to the MBPG PostgreSQL service. Do not reuse a database from another bot.
-
-## Web service variables
-
-Set this variable on the `@mbpg/web` Railway service:
-
-```bash
-VITE_API_BASE=https://your-api-service.up.railway.app
-```
 
 ## Important
 
