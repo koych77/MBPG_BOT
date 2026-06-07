@@ -23,6 +23,15 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
 }
 
 button,
@@ -49,8 +58,8 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 64px;
-  padding: 12px 16px;
+  min-height: calc(64px + env(safe-area-inset-top));
+  padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
   background: rgba(255, 255, 255, 0.92);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(18px);
@@ -84,9 +93,9 @@ a {
 }
 
 .screen {
-  width: min(100%, 860px);
-  margin: 0 auto;
-  padding: 16px 14px 104px;
+  width: 100%;
+  margin: 0;
+  padding: 0 0 104px;
 }
 
 .hero {
@@ -99,8 +108,9 @@ a {
   background:
     linear-gradient(135deg, rgba(255, 214, 70, 0.86), rgba(255, 255, 255, 0.15) 42%),
     linear-gradient(160deg, #bdeeff, #ffffff 54%, #eaf8ff);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
   box-shadow: var(--shadow);
 }
 
@@ -168,7 +178,7 @@ a {
 }
 
 .panel {
-  margin-top: 14px;
+  margin: 14px 10px 0;
   padding: 18px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -339,7 +349,7 @@ a {
   left: 50%;
   bottom: 0;
   z-index: 30;
-  width: min(100%, 860px);
+  width: 100%;
   transform: translateX(-50%);
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -406,8 +416,8 @@ a {
 
 @media (max-width: 680px) {
   .screen {
-    padding-right: 10px;
-    padding-left: 10px;
+    padding-right: 0;
+    padding-left: 0;
   }
 
   .hero {

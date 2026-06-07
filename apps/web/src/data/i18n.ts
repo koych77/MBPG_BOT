@@ -5,7 +5,7 @@ export type Direction = "pool" | "gym" | "massage";
 
 export const languages: Array<{ code: Lang; label: string }> = [
   { code: "ru", label: "RU" },
-  { code: "ka", label: "KA" },
+  { code: "ka", label: "GE" },
   { code: "en", label: "EN" }
 ];
 
