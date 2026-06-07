@@ -14,6 +14,7 @@ export type TelegramWebApp = {
   expand: () => void;
   requestFullscreen?: () => void;
   disableVerticalSwipes?: () => void;
+  isVersionAtLeast?: (version: string) => boolean;
 };
 
 declare global {
@@ -41,8 +42,12 @@ export function openFullscreen() {
   try {
     tg?.ready();
     tg?.expand();
-    tg?.requestFullscreen?.();
-    tg?.disableVerticalSwipes?.();
+    if (tg?.isVersionAtLeast?.("8.0")) {
+      tg.requestFullscreen?.();
+    }
+    if (tg?.isVersionAtLeast?.("7.7")) {
+      tg.disableVerticalSwipes?.();
+    }
   } catch {
     tg?.expand();
   }

@@ -5,7 +5,7 @@ import { AdminPanel } from "./components/AdminPanel";
 import { LanguageSwitch } from "./components/LanguageSwitch";
 import { ServiceCard } from "./components/ServiceCard";
 import { apiForm, apiJson } from "./lib/api";
-import { openFullscreen } from "./lib/telegram";
+import { getDevTelegramId, getInitData, openFullscreen } from "./lib/telegram";
 import { copy, services, type Direction, type Lang } from "./data/i18n";
 import "./styles.css";
 
@@ -32,6 +32,7 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem("mbpg_lang", lang);
+    if (!getInitData() && !getDevTelegramId()) return;
     void apiJson("/api/clients/me", {
       method: "POST",
       body: JSON.stringify({ languageCode: lang })
