@@ -362,6 +362,105 @@ a {
   border: 1px solid #ffc8c8;
 }
 
+.choice-group {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #f4fbff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.choice-group label {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+}
+
+.choice-group input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.section-head h2 {
+  margin-bottom: 0;
+}
+
+.cabinet-list {
+  display: grid;
+  gap: 10px;
+}
+
+.cabinet-item {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  background: #fbfdff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.cabinet-item p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.cabinet-item small,
+.muted {
+  color: var(--muted);
+}
+
+.status-pill {
+  width: max-content;
+  max-width: 100%;
+  padding: 5px 8px;
+  color: #0c5f7a;
+  background: #e6f8ff;
+  border: 1px solid #bdeeff;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.status-pill.booked,
+.status-pill.paid,
+.status-pill.approved {
+  color: #0e5f3b;
+  background: #e8fff4;
+  border-color: #a8ebcd;
+}
+
+.status-pill.lost,
+.status-pill.rejected,
+.status-pill.canceled {
+  color: #8a1f1f;
+  background: #fff0f0;
+  border-color: #ffc8c8;
+}
+
+.progress {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  background: #e7f3fb;
+  border-radius: 999px;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  background: var(--blue-dark);
+}
+
 .contact-list {
   display: grid;
   gap: 10px;
@@ -464,6 +563,10 @@ a {
 
 .mini-button {
   min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 9px 12px;
   color: var(--ink);
   background: var(--yellow);

@@ -29,6 +29,20 @@ enum ReminderStatus {
   CANCELED
 }
 
+enum EnrollmentStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELED
+}
+
+enum LessonStatus {
+  SCHEDULED
+  ATTENDED
+  MISSED
+  CANCELED
+}
+
 model Client {
   id             String   @id @default(cuid())
   projectKey     String   @default("mbpg")
@@ -46,6 +60,8 @@ model Client {
   leads          Lead[]
   receipts       Receipt[]
   reminders      Reminder[]
+  enrollments    Enrollment[]
+  lessons        Lesson[]
 
   @@unique([projectKey, telegramId])
   @@index([projectKey])
@@ -70,8 +86,23 @@ model Lead {
   updatedAt     DateTime   @updatedAt
   receipts      Receipt[]
   reminders     Reminder[]
+  services      LeadService[]
+  enrollments   Enrollment[]
+  lessons       Lesson[]
 
   @@index([projectKey, createdAt])
+}
+
+model LeadService {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  serviceSlug String
+  title       String?
+  direction   String?
+  createdAt   DateTime @default(now())
+
+  @@index([leadId])
 }
 
 model Receipt {
@@ -110,6 +141,50 @@ model Reminder {
   updatedAt   DateTime       @updatedAt
 
   @@index([projectKey, status, dueAt])
+}
+
+model Enrollment {
+  id           String           @id @default(cuid())
+  projectKey   String           @default("mbpg")
+  clientId     String
+  client       Client           @relation(fields: [clientId], references: [id])
+  leadId       String?
+  lead         Lead?            @relation(fields: [leadId], references: [id])
+  title        String
+  direction    String?
+  branch       String?
+  totalLessons Int              @default(0)
+  usedLessons  Int              @default(0)
+  status       EnrollmentStatus @default(ACTIVE)
+  startDate    DateTime?
+  endDate      DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  lessons      Lesson[]
+
+  @@index([projectKey, clientId])
+  @@index([projectKey, status])
+}
+
+model Lesson {
+  id           String       @id @default(cuid())
+  projectKey   String       @default("mbpg")
+  clientId     String
+  client       Client       @relation(fields: [clientId], references: [id])
+  enrollmentId String?
+  enrollment   Enrollment?  @relation(fields: [enrollmentId], references: [id])
+  leadId       String?
+  lead         Lead?        @relation(fields: [leadId], references: [id])
+  title        String
+  branch       String?
+  startsAt     DateTime
+  status       LessonStatus @default(SCHEDULED)
+  note         String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([projectKey, clientId, startsAt])
+  @@index([projectKey, status, startsAt])
 }
 
 model Broadcast {

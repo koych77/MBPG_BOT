@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ArrowLeft, CalendarCheck, MapPin, ReceiptText } from "lucide-react";
+import { ArrowLeft, CalendarCheck, ClipboardList, MapPin, ReceiptText } from "lucide-react";
 import { AdminPanel } from "./components/AdminPanel";
 import { LanguageSwitch } from "./components/LanguageSwitch";
 import { ServiceCard } from "./components/ServiceCard";
@@ -9,8 +9,35 @@ import { getDevTelegramId, getInitData, openFullscreen } from "./lib/telegram";
 import { copy, services, type Direction, type Lang } from "./data/i18n";
 import "./styles.css";
 
-type Page = "home" | "direction" | "service" | "book" | "prices" | "contacts" | "receipt";
+type Page = "home" | "direction" | "service" | "book" | "cabinet" | "prices" | "contacts" | "receipt";
 type Notice = { kind: "success" | "error"; message: string };
+type Dashboard = {
+  hasCabinet: boolean;
+  leads: Array<{
+    id: string;
+    childName: string;
+    childAge: string;
+    direction: Direction;
+    branch: string;
+    status: string;
+    preferredTime?: string;
+    createdAt: string;
+    services: Array<{ serviceSlug: string; title?: string | null; direction?: string | null }>;
+  }>;
+  receipts: Array<{ id: string; fileName: string; status: string; createdAt: string }>;
+  enrollments: Array<{
+    id: string;
+    title: string;
+    direction?: string;
+    branch?: string;
+    totalLessons: number;
+    usedLessons: number;
+    remainingLessons: number;
+    status: string;
+    lessons: Array<{ id: string; title: string; startsAt: string; status: string; branch?: string }>;
+  }>;
+  upcomingLessons: Array<{ id: string; title: string; startsAt: string; status: string; branch?: string }>;
+};
 
 const actionCopy: Record<Lang, {
   sending: string;
@@ -18,27 +45,67 @@ const actionCopy: Record<Lang, {
   leadSuccess: string;
   receiptSuccess: string;
   requestError: string;
+  cabinet: string;
+  addLesson: string;
+  myRequests: string;
+  subscriptions: string;
+  schedule: string;
+  payments: string;
+  noCabinet: string;
+  selectedLessons: string;
+  remaining: string;
+  used: string;
 }> = {
   ru: {
     sending: "Отправляем...",
     uploading: "Загружаем...",
     leadSuccess: "Заявка принята. Администратор уже получил уведомление и скоро свяжется с вами.",
     receiptSuccess: "Чек получен. Администратор уже получил уведомление и проверит оплату.",
-    requestError: "Не получилось отправить. Проверьте связь и попробуйте еще раз."
+    requestError: "Не получилось отправить. Проверьте связь и попробуйте еще раз.",
+    cabinet: "Кабинет",
+    addLesson: "Добавить занятие",
+    myRequests: "Мои заявки",
+    subscriptions: "Абонементы",
+    schedule: "Расписание",
+    payments: "Оплаты",
+    noCabinet: "Пока нет заявок. Отправьте первую заявку, и здесь появится кабинет.",
+    selectedLessons: "Выберите занятия",
+    remaining: "осталось",
+    used: "отходил"
   },
   ka: {
     sending: "იგზავნება...",
     uploading: "იტვირთება...",
     leadSuccess: "განაცხადი მიღებულია. ადმინისტრატორმა უკვე მიიღო შეტყობინება და მალე დაგიკავშირდებათ.",
     receiptSuccess: "ჩეკი მიღებულია. ადმინისტრატორმა უკვე მიიღო შეტყობინება და შეამოწმებს გადახდას.",
-    requestError: "გაგზავნა ვერ მოხერხდა. შეამოწმეთ კავშირი და სცადეთ კიდევ ერთხელ."
+    requestError: "გაგზავნა ვერ მოხერხდა. შეამოწმეთ კავშირი და სცადეთ კიდევ ერთხელ.",
+    cabinet: "კაბინეტი",
+    addLesson: "გაკვეთილის დამატება",
+    myRequests: "ჩემი განაცხადები",
+    subscriptions: "აბონემენტები",
+    schedule: "განრიგი",
+    payments: "გადახდები",
+    noCabinet: "განაცხადები ჯერ არ არის. გაგზავნეთ პირველი განაცხადი და აქ გამოჩნდება კაბინეტი.",
+    selectedLessons: "აირჩიეთ გაკვეთილები",
+    remaining: "დარჩა",
+    used: "გამოყენებულია"
   },
   en: {
     sending: "Sending...",
     uploading: "Uploading...",
     leadSuccess: "Request received. The administrator has already been notified and will contact you soon.",
     receiptSuccess: "Receipt received. The administrator has already been notified and will check the payment.",
-    requestError: "Could not send. Check your connection and try again."
+    requestError: "Could not send. Check your connection and try again.",
+    cabinet: "Cabinet",
+    addLesson: "Add lesson",
+    myRequests: "My requests",
+    subscriptions: "Subscriptions",
+    schedule: "Schedule",
+    payments: "Payments",
+    noCabinet: "No requests yet. Send your first request and your cabinet will appear here.",
+    selectedLessons: "Choose lessons",
+    remaining: "remaining",
+    used: "used"
   }
 };
 
@@ -49,6 +116,7 @@ function App() {
   const [direction, setDirection] = useState<Direction>("pool");
   const [serviceSlug, setServiceSlug] = useState("baby-swim");
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const t = copy[lang];
 
   const activeService = useMemo(
@@ -67,7 +135,9 @@ function App() {
     void apiJson("/api/clients/me", {
       method: "POST",
       body: JSON.stringify({ languageCode: lang })
-    }).catch(() => undefined);
+    })
+      .then(() => refreshDashboard())
+      .catch(() => undefined);
   }, [lang]);
 
   useEffect(() => {
@@ -93,6 +163,16 @@ function App() {
   function openService(slug: string) {
     setServiceSlug(slug);
     setPage("service");
+  }
+
+  async function refreshDashboard() {
+    if (!getInitData() && !getDevTelegramId()) return;
+    const result = await apiJson<Dashboard>("/api/clients/me/dashboard");
+    setDashboard(result);
+  }
+
+  function openCabinetOrBooking() {
+    setPage(dashboard?.hasCabinet ? "cabinet" : "book");
   }
 
   return (
@@ -165,7 +245,8 @@ function App() {
           </section>
         )}
 
-        {page === "book" && <BookingForm lang={lang} serviceSlug={serviceSlug} direction={direction} onDone={setNotice} />}
+        {page === "book" && <BookingForm lang={lang} serviceSlug={serviceSlug} direction={direction} onDone={setNotice} onSaved={() => void refreshDashboard()} />}
+        {page === "cabinet" && <ClientCabinet dashboard={dashboard} lang={lang} onAdd={() => setPage("book")} onReceipt={() => setPage("receipt")} />}
         {page === "prices" && <Prices lang={lang} onBack={() => setPage("home")} />}
         {page === "contacts" && <Contacts lang={lang} onBack={() => setPage("home")} />}
         {page === "receipt" && <ReceiptUpload lang={lang} onDone={setNotice} />}
@@ -175,7 +256,7 @@ function App() {
       <nav className="bottom-nav">
         <button className={page === "home" ? "active" : ""} onClick={() => setPage("home")} type="button">MBPG</button>
         <button className={page === "prices" ? "active" : ""} onClick={() => setPage("prices")} type="button">{t.prices}</button>
-        <button className={page === "book" ? "active" : ""} onClick={() => setPage("book")} type="button">{t.book}</button>
+        <button className={page === "book" || page === "cabinet" ? "active" : ""} onClick={openCabinetOrBooking} type="button">{dashboard?.hasCabinet ? actionCopy[lang].cabinet : t.book}</button>
         <button className={page === "contacts" ? "active" : ""} onClick={() => setPage("contacts")} type="button">{t.contacts}</button>
       </nav>
     </>
@@ -195,11 +276,12 @@ function BackButton({ onClick, label }: { onClick: () => void; label: string }) 
   return <button className="back" onClick={onClick} type="button"><ArrowLeft size={17} />{label}</button>;
 }
 
-function BookingForm({ lang, direction, serviceSlug, onDone }: { lang: Lang; direction: Direction; serviceSlug: string; onDone: (notice: Notice) => void }) {
+function BookingForm({ lang, direction, serviceSlug, onDone, onSaved }: { lang: Lang; direction: Direction; serviceSlug: string; onDone: (notice: Notice) => void; onSaved: () => void }) {
   const t = copy[lang];
   const action = actionCopy[lang];
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Notice | null>(null);
+  const defaultServiceSlugs = useMemo(() => new Set([serviceSlug]), [serviceSlug]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -209,6 +291,7 @@ function BookingForm({ lang, direction, serviceSlug, onDone }: { lang: Lang; dir
 
     try {
       const form = new FormData(formElement);
+      const serviceSlugs = form.getAll("serviceSlugs").map(String);
       const result = await apiJson<{ message?: string }>("/api/leads", {
         method: "POST",
         body: JSON.stringify({
@@ -219,6 +302,7 @@ function BookingForm({ lang, direction, serviceSlug, onDone }: { lang: Lang; dir
           childAge: form.get("childAge"),
           direction,
           serviceSlug,
+          serviceSlugs,
           branch: form.get("branch"),
           preferredTime: form.get("preferredTime"),
           comment: form.get("comment")
@@ -228,6 +312,7 @@ function BookingForm({ lang, direction, serviceSlug, onDone }: { lang: Lang; dir
       const nextStatus = { kind: "success" as const, message: result.message ?? action.leadSuccess };
       setStatus(nextStatus);
       onDone(nextStatus);
+      onSaved();
     } catch {
       const nextStatus = { kind: "error" as const, message: action.requestError };
       setStatus(nextStatus);
@@ -250,6 +335,15 @@ function BookingForm({ lang, direction, serviceSlug, onDone }: { lang: Lang; dir
             <option>Pool Javakhishvili 28</option>
             <option>Gym Gorgasali 127</option>
           </select>
+          <div className="choice-group" role="group" aria-label={action.selectedLessons}>
+            <strong>{action.selectedLessons}</strong>
+            {services.map((service) => (
+              <label key={service.slug}>
+                <input defaultChecked={defaultServiceSlugs.has(service.slug)} name="serviceSlugs" type="checkbox" value={service.slug} />
+                <span>{service.title[lang]}</span>
+              </label>
+            ))}
+          </div>
           <input name="preferredTime" placeholder={t.preferredTime} />
           <textarea name="comment" placeholder={t.comment} rows={4} />
         </fieldset>
@@ -258,6 +352,107 @@ function BookingForm({ lang, direction, serviceSlug, onDone }: { lang: Lang; dir
       </form>
     </section>
   );
+}
+
+function ClientCabinet({ dashboard, lang, onAdd, onReceipt }: { dashboard: Dashboard | null; lang: Lang; onAdd: () => void; onReceipt: () => void }) {
+  const action = actionCopy[lang];
+
+  if (!dashboard?.hasCabinet) {
+    return (
+      <section className="panel">
+        <h2>{action.cabinet}</h2>
+        <p className="muted">{action.noCabinet}</p>
+        <button className="wide-action" onClick={onAdd} type="button">{action.addLesson}</button>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      <section className="panel">
+        <div className="section-head">
+          <h2>{action.cabinet}</h2>
+          <button className="mini-button" onClick={onAdd} type="button"><ClipboardList size={16} />{action.addLesson}</button>
+        </div>
+      </section>
+
+      <section className="panel">
+        <h2>{action.myRequests}</h2>
+        <div className="cabinet-list">
+          {dashboard.leads.map((lead) => (
+            <article className="cabinet-item" key={lead.id}>
+              <strong>{lead.childName}, {lead.childAge}</strong>
+              <p>{lead.branch}{lead.preferredTime ? ` · ${lead.preferredTime}` : ""}</p>
+              <small>{lead.services.map((service) => service.title || serviceTitle(service.serviceSlug, lang)).join(", ") || lead.direction}</small>
+              <span className={`status-pill ${lead.status.toLowerCase()}`}>{leadStatusLabel(lead.status, lang)}</span>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel">
+        <h2>{action.subscriptions}</h2>
+        <div className="cabinet-list">
+          {dashboard.enrollments.length === 0 && <p className="muted">Администратор еще не добавил абонемент.</p>}
+          {dashboard.enrollments.map((enrollment) => (
+            <article className="cabinet-item" key={enrollment.id}>
+              <strong>{enrollment.title}</strong>
+              <p>{action.used}: {enrollment.usedLessons} · {action.remaining}: {enrollment.remainingLessons}</p>
+              <div className="progress"><span style={{ width: `${enrollment.totalLessons > 0 ? Math.min((enrollment.usedLessons / enrollment.totalLessons) * 100, 100) : 0}%` }} /></div>
+              <small>{enrollment.branch || ""} · {enrollment.status}</small>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel">
+        <h2>{action.schedule}</h2>
+        <div className="cabinet-list">
+          {dashboard.upcomingLessons.length === 0 && <p className="muted">Ближайшие занятия пока не назначены.</p>}
+          {dashboard.upcomingLessons.map((lesson) => (
+            <article className="cabinet-item" key={lesson.id}>
+              <strong>{lesson.title}</strong>
+              <p>{new Date(lesson.startsAt).toLocaleString()}</p>
+              <small>{lesson.branch || ""} · {lesson.status}</small>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="section-head">
+          <h2>{action.payments}</h2>
+          <button className="mini-button" onClick={onReceipt} type="button"><ReceiptText size={16} />{copy[lang].receipt}</button>
+        </div>
+        <div className="cabinet-list">
+          {dashboard.receipts.length === 0 && <p className="muted">Чеки пока не отправлялись.</p>}
+          {dashboard.receipts.map((receipt) => (
+            <article className="cabinet-item" key={receipt.id}>
+              <strong>{receipt.fileName}</strong>
+              <p>{new Date(receipt.createdAt).toLocaleString()}</p>
+              <span className={`status-pill ${receipt.status.toLowerCase()}`}>{receipt.status}</span>
+            </article>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function serviceTitle(slug: string, lang: Lang) {
+  return services.find((service) => service.slug === slug)?.title[lang] ?? slug;
+}
+
+function leadStatusLabel(status: string, lang: Lang) {
+  const labels: Record<string, Record<Lang, string>> = {
+    NEW: { ru: "Заявка отправлена", ka: "განაცხადი გაგზავნილია", en: "Request sent" },
+    CONTACTED: { ru: "Админ на связи", ka: "ადმინისტრატორი დაგიკავშირდათ", en: "Admin contacted" },
+    BOOKED: { ru: "Запись подтверждена", ka: "ჩანაწერი დადასტურდა", en: "Booked" },
+    PAID: { ru: "Оплачено", ka: "გადახდილია", en: "Paid" },
+    LOST: { ru: "Отменено", ka: "გაუქმებულია", en: "Canceled" },
+    ARCHIVED: { ru: "В архиве", ka: "არქივშია", en: "Archived" }
+  };
+  return labels[status]?.[lang] ?? status;
 }
 
 function ReceiptUpload({ lang, onDone }: { lang: Lang; onDone: (notice: Notice) => void }) {

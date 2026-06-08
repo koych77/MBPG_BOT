@@ -16,6 +16,7 @@ const leadSchema = z.object({
   childAge: z.string().min(1),
   direction: z.enum(["pool", "gym", "massage"]),
   serviceSlug: z.string().optional(),
+  serviceSlugs: z.array(z.string().min(1)).optional(),
   branch: z.string().min(2),
   preferredTime: z.string().optional(),
   comment: z.string().optional()
@@ -33,6 +34,9 @@ leadsRouter.post("/", async (req, res, next) => {
     const user = requireTelegramUser(req);
     const body = leadSchema.parse(req.body);
     const client = await upsertClient(user, body.languageCode, body.phone);
+    const serviceSlugs = Array.from(new Set(
+      (body.serviceSlugs && body.serviceSlugs.length > 0 ? body.serviceSlugs : body.serviceSlug ? [body.serviceSlug] : [])
+    ));
     const lead = await prisma.lead.create({
       data: {
         projectKey: env.projectKey,
@@ -45,8 +49,15 @@ leadsRouter.post("/", async (req, res, next) => {
         serviceSlug: body.serviceSlug,
         branch: body.branch,
         preferredTime: body.preferredTime,
-        comment: body.comment
-      }
+        comment: body.comment,
+        services: {
+          create: serviceSlugs.map((serviceSlug) => ({
+            serviceSlug,
+            direction: body.direction
+          }))
+        }
+      },
+      include: { services: true }
     });
 
     await notifyAdmins(
@@ -56,6 +67,7 @@ leadsRouter.post("/", async (req, res, next) => {
         `Телефон: ${lead.phone}`,
         `Ребенок: ${lead.childName}, ${lead.childAge}`,
         `Направление: ${directionLabel(lead.direction)}`,
+        lead.services.length > 0 ? `Занятия: ${lead.services.map((service) => service.serviceSlug).join(", ")}` : undefined,
         `Филиал: ${lead.branch}`,
         lead.preferredTime ? `Удобное время: ${lead.preferredTime}` : undefined,
         lead.comment ? `Комментарий: ${lead.comment}` : undefined,
@@ -71,10 +83,11 @@ leadsRouter.post("/", async (req, res, next) => {
           "Ваша заявка MBPG принята.",
           "",
           `Направление: ${directionLabel(lead.direction)}`,
+          lead.services.length > 0 ? `Занятия: ${lead.services.map((service) => service.serviceSlug).join(", ")}` : undefined,
           `Филиал: ${lead.branch}`,
           "",
           "Администратор получил уведомление и свяжется с вами, чтобы подтвердить удобное время занятия."
-        ].join("\n")
+        ].filter(Boolean).join("\n")
       )
     ).catch(() => undefined);
 

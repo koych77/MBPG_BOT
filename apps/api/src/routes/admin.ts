@@ -10,6 +10,8 @@ export const adminRouter = Router();
 
 type LeadWithClient = Prisma.LeadGetPayload<{ include: { client: true } }>;
 type ReceiptWithClientAndLead = Prisma.ReceiptGetPayload<{ include: { client: true; lead: true } }>;
+type EnrollmentWithClient = Prisma.EnrollmentGetPayload<{ include: { client: true; lead: true } }>;
+type LessonWithClient = Prisma.LessonGetPayload<{ include: { client: true; enrollment: true } }>;
 
 adminRouter.use((req, _res, next) => {
   try {
@@ -22,16 +24,19 @@ adminRouter.use((req, _res, next) => {
 
 adminRouter.get("/overview", async (_req, res, next) => {
   try {
-    const [clients, leads, receipts, reminders, broadcasts, recentClients, recentLeads, recentReceipts, recentReminders, recentBroadcasts] = await Promise.all([
+    const [clients, leads, receipts, reminders, broadcasts, enrollments, lessons, recentClients, recentLeads, recentReceipts, recentReminders, recentBroadcasts, recentEnrollments, recentLessons] = await Promise.all([
       prisma.client.count({ where: { projectKey: env.projectKey } }),
       prisma.lead.count({ where: { projectKey: env.projectKey } }),
       prisma.receipt.count({ where: { projectKey: env.projectKey } }),
       prisma.reminder.count({ where: { projectKey: env.projectKey, status: "SCHEDULED" } }),
       prisma.broadcast.count({ where: { projectKey: env.projectKey } }),
+      prisma.enrollment.count({ where: { projectKey: env.projectKey } }),
+      prisma.lesson.count({ where: { projectKey: env.projectKey } }),
       prisma.client.findMany({
         where: { projectKey: env.projectKey },
         include: {
-          leads: { orderBy: { createdAt: "desc" }, take: 3 }
+          leads: { orderBy: { createdAt: "desc" }, take: 3 },
+          enrollments: { orderBy: { updatedAt: "desc" }, take: 3 }
         },
         orderBy: { updatedAt: "desc" },
         take: 100
@@ -58,11 +63,23 @@ adminRouter.get("/overview", async (_req, res, next) => {
         where: { projectKey: env.projectKey },
         orderBy: { createdAt: "desc" },
         take: 20
+      }),
+      prisma.enrollment.findMany({
+        where: { projectKey: env.projectKey },
+        include: { client: true, lead: true },
+        orderBy: { updatedAt: "desc" },
+        take: 30
+      }),
+      prisma.lesson.findMany({
+        where: { projectKey: env.projectKey },
+        include: { client: true, enrollment: true },
+        orderBy: { startsAt: "asc" },
+        take: 40
       })
     ]);
 
     res.json({
-      stats: { clients, leads, receipts, reminders, broadcasts },
+      stats: { clients, leads, receipts, reminders, broadcasts, enrollments, lessons },
       recentClients: recentClients.map((client) => ({
         ...client,
         telegramId: client.telegramId.toString()
@@ -80,7 +97,16 @@ adminRouter.get("/overview", async (_req, res, next) => {
         ...reminder,
         client: { ...reminder.client, telegramId: reminder.client.telegramId.toString() }
       })),
-      recentBroadcasts
+      recentBroadcasts,
+      recentEnrollments: recentEnrollments.map((enrollment: EnrollmentWithClient) => ({
+        ...enrollment,
+        remainingLessons: Math.max(enrollment.totalLessons - enrollment.usedLessons, 0),
+        client: { ...enrollment.client, telegramId: enrollment.client.telegramId.toString() }
+      })),
+      recentLessons: recentLessons.map((lesson: LessonWithClient) => ({
+        ...lesson,
+        client: { ...lesson.client, telegramId: lesson.client.telegramId.toString() }
+      }))
     });
   } catch (error) {
     next(error);
@@ -144,6 +170,125 @@ adminRouter.post("/reminders", async (req, res, next) => {
       }
     });
     res.status(201).json({ reminder });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const enrollmentSchema = z.object({
+  clientId: z.string().min(1),
+  leadId: z.string().optional(),
+  title: z.string().min(2),
+  direction: z.string().optional(),
+  branch: z.string().optional(),
+  totalLessons: z.number().int().min(0).default(0),
+  usedLessons: z.number().int().min(0).default(0),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional()
+});
+
+adminRouter.post("/enrollments", async (req, res, next) => {
+  try {
+    const body = enrollmentSchema.parse(req.body);
+    const enrollment = await prisma.enrollment.create({
+      data: {
+        projectKey: env.projectKey,
+        clientId: body.clientId,
+        leadId: body.leadId,
+        title: body.title,
+        direction: body.direction,
+        branch: body.branch,
+        totalLessons: body.totalLessons,
+        usedLessons: body.usedLessons,
+        startDate: body.startDate ? new Date(body.startDate) : undefined,
+        endDate: body.endDate ? new Date(body.endDate) : undefined
+      }
+    });
+    res.status(201).json({ enrollment });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const enrollmentStatusSchema = z.object({
+  status: z.enum(["ACTIVE", "PAUSED", "COMPLETED", "CANCELED"]).optional(),
+  totalLessons: z.number().int().min(0).optional(),
+  usedLessons: z.number().int().min(0).optional()
+});
+
+adminRouter.patch("/enrollments/:id", async (req, res, next) => {
+  try {
+    const body = enrollmentStatusSchema.parse(req.body);
+    const enrollment = await prisma.enrollment.update({
+      where: { id: req.params.id },
+      data: body
+    });
+    res.json({ enrollment });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const lessonSchema = z.object({
+  clientId: z.string().min(1),
+  enrollmentId: z.string().optional(),
+  leadId: z.string().optional(),
+  title: z.string().min(2),
+  branch: z.string().optional(),
+  startsAt: z.string().datetime(),
+  note: z.string().optional()
+});
+
+adminRouter.post("/lessons", async (req, res, next) => {
+  try {
+    const body = lessonSchema.parse(req.body);
+    const lesson = await prisma.lesson.create({
+      data: {
+        projectKey: env.projectKey,
+        clientId: body.clientId,
+        enrollmentId: body.enrollmentId,
+        leadId: body.leadId,
+        title: body.title,
+        branch: body.branch,
+        startsAt: new Date(body.startsAt),
+        note: body.note
+      }
+    });
+    res.status(201).json({ lesson });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const lessonStatusSchema = z.object({
+  status: z.enum(["SCHEDULED", "ATTENDED", "MISSED", "CANCELED"])
+});
+
+adminRouter.patch("/lessons/:id/status", async (req, res, next) => {
+  try {
+    const body = lessonStatusSchema.parse(req.body);
+    const previous = await prisma.lesson.findUnique({ where: { id: req.params.id } });
+    const lesson = await prisma.lesson.update({
+      where: { id: req.params.id },
+      data: { status: body.status }
+    });
+
+    if (lesson.enrollmentId && previous?.status !== "ATTENDED" && body.status === "ATTENDED") {
+      await prisma.enrollment.update({
+        where: { id: lesson.enrollmentId },
+        data: { usedLessons: { increment: 1 } }
+      });
+    }
+
+    if (lesson.enrollmentId && previous?.status === "ATTENDED" && body.status !== "ATTENDED") {
+      const enrollment = await prisma.enrollment.findUnique({ where: { id: lesson.enrollmentId } });
+      await prisma.enrollment.update({
+        where: { id: lesson.enrollmentId },
+        data: { usedLessons: Math.max((enrollment?.usedLessons ?? 0) - 1, 0) }
+      });
+    }
+
+    res.json({ lesson });
   } catch (error) {
     next(error);
   }
