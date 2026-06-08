@@ -21,6 +21,13 @@ const leadSchema = z.object({
   comment: z.string().optional()
 });
 
+function directionLabel(direction: string) {
+  if (direction === "pool") return "Pool";
+  if (direction === "gym") return "Gym";
+  if (direction === "massage") return "Massage";
+  return direction;
+}
+
 leadsRouter.post("/", async (req, res, next) => {
   try {
     const user = requireTelegramUser(req);
@@ -44,24 +51,37 @@ leadsRouter.post("/", async (req, res, next) => {
 
     await notifyAdmins(
       [
-        "New MBPG lead",
-        `Parent: ${lead.parentName}`,
-        `Phone: ${lead.phone}`,
-        `Child: ${lead.childName}, ${lead.childAge}`,
-        `Direction: ${lead.direction}`,
-        `Branch: ${lead.branch}`,
-        `Telegram ID: ${client.telegramId.toString()}`
-      ].join("\n")
+        "Новая заявка MBPG",
+        `Родитель: ${lead.parentName}`,
+        `Телефон: ${lead.phone}`,
+        `Ребенок: ${lead.childName}, ${lead.childAge}`,
+        `Направление: ${directionLabel(lead.direction)}`,
+        `Филиал: ${lead.branch}`,
+        lead.preferredTime ? `Удобное время: ${lead.preferredTime}` : undefined,
+        lead.comment ? `Комментарий: ${lead.comment}` : undefined,
+        `Telegram ID: ${client.telegramId.toString()}`,
+        `${env.webAppUrl}/admin`
+      ].filter(Boolean).join("\n")
     );
 
     await import("../bot/index.js").then(({ bot }) =>
       bot.api.sendMessage(
         client.telegramId.toString(),
-        "Ваша заявка MBPG принята. Администратор свяжется с вами, чтобы подтвердить удобное время занятия."
+        [
+          "Ваша заявка MBPG принята.",
+          "",
+          `Направление: ${directionLabel(lead.direction)}`,
+          `Филиал: ${lead.branch}`,
+          "",
+          "Администратор получил уведомление и свяжется с вами, чтобы подтвердить удобное время занятия."
+        ].join("\n")
       )
     ).catch(() => undefined);
 
-    res.status(201).json({ lead });
+    res.status(201).json({
+      lead,
+      message: "Заявка принята. Администратор уже получил уведомление и скоро свяжется с вами."
+    });
   } catch (error) {
     next(error);
   }

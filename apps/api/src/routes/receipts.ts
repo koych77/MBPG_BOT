@@ -41,15 +41,33 @@ receiptsRouter.post("/", upload.single("receipt"), async (req, res, next) => {
 
     await notifyAdmins(
       [
-        "New MBPG receipt",
+        "Новый чек MBPG",
+        `Файл: ${receipt.fileName}`,
+        `Размер: ${Math.round(receipt.size / 1024)} KB`,
         `Receipt ID: ${receipt.id}`,
-        `File: ${receipt.fileName}`,
         `Telegram ID: ${client.telegramId.toString()}`,
-        "Open /admin to approve or reject."
+        "Откройте админку, чтобы проверить чек:",
+        `${env.webAppUrl}/admin`
       ].join("\n")
     );
 
-    res.status(201).json({ receipt: { ...receipt, data: undefined } });
+    await import("../bot/index.js").then(({ bot }) =>
+      bot.api.sendMessage(
+        client.telegramId.toString(),
+        [
+          "Чек MBPG получен.",
+          "",
+          `Файл: ${receipt.fileName}`,
+          "",
+          "Администратор уже получил уведомление и проверит оплату."
+        ].join("\n")
+      )
+    ).catch(() => undefined);
+
+    res.status(201).json({
+      receipt: { ...receipt, data: undefined },
+      message: "Чек получен. Администратор уже получил уведомление и проверит оплату."
+    });
   } catch (error) {
     next(error);
   }

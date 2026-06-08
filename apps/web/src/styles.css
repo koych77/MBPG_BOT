@@ -308,6 +308,19 @@ a {
   gap: 10px;
 }
 
+.form fieldset {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.form fieldset:disabled {
+  opacity: 0.72;
+}
+
 .form input,
 .form select,
 .form textarea,
@@ -323,6 +336,30 @@ a {
 
 .wide-action {
   width: 100%;
+}
+
+.wide-action:disabled {
+  cursor: wait;
+  opacity: 0.78;
+}
+
+.form-status {
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.form-status.success {
+  color: #0e5f3b;
+  background: #e8fff4;
+  border: 1px solid #a8ebcd;
+}
+
+.form-status.error {
+  color: #8a1f1f;
+  background: #fff0f0;
+  border: 1px solid #ffc8c8;
 }
 
 .contact-list {
@@ -392,6 +429,10 @@ a {
   text-align: center;
   font-weight: 800;
   box-shadow: var(--shadow);
+}
+
+.toast.error {
+  background: #a83232;
 }
 
 .stats {

@@ -10,6 +10,37 @@ import { copy, services, type Direction, type Lang } from "./data/i18n";
 import "./styles.css";
 
 type Page = "home" | "direction" | "service" | "book" | "prices" | "contacts" | "receipt";
+type Notice = { kind: "success" | "error"; message: string };
+
+const actionCopy: Record<Lang, {
+  sending: string;
+  uploading: string;
+  leadSuccess: string;
+  receiptSuccess: string;
+  requestError: string;
+}> = {
+  ru: {
+    sending: "Отправляем...",
+    uploading: "Загружаем...",
+    leadSuccess: "Заявка принята. Администратор уже получил уведомление и скоро свяжется с вами.",
+    receiptSuccess: "Чек получен. Администратор уже получил уведомление и проверит оплату.",
+    requestError: "Не получилось отправить. Проверьте связь и попробуйте еще раз."
+  },
+  ka: {
+    sending: "იგზავნება...",
+    uploading: "იტვირთება...",
+    leadSuccess: "განაცხადი მიღებულია. ადმინისტრატორმა უკვე მიიღო შეტყობინება და მალე დაგიკავშირდებათ.",
+    receiptSuccess: "ჩეკი მიღებულია. ადმინისტრატორმა უკვე მიიღო შეტყობინება და შეამოწმებს გადახდას.",
+    requestError: "გაგზავნა ვერ მოხერხდა. შეამოწმეთ კავშირი და სცადეთ კიდევ ერთხელ."
+  },
+  en: {
+    sending: "Sending...",
+    uploading: "Uploading...",
+    leadSuccess: "Request received. The administrator has already been notified and will contact you soon.",
+    receiptSuccess: "Receipt received. The administrator has already been notified and will check the payment.",
+    requestError: "Could not send. Check your connection and try again."
+  }
+};
 
 function App() {
   const initialLang = (localStorage.getItem("mbpg_lang") as Lang | null) ?? "ru";
@@ -17,7 +48,7 @@ function App() {
   const [page, setPage] = useState<Page>("home");
   const [direction, setDirection] = useState<Direction>("pool");
   const [serviceSlug, setServiceSlug] = useState("baby-swim");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<Notice | null>(null);
   const t = copy[lang];
 
   const activeService = useMemo(
@@ -38,6 +69,12 @@ function App() {
       body: JSON.stringify({ languageCode: lang })
     }).catch(() => undefined);
   }, [lang]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(null), 5200);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
 
   if (window.location.pathname === "/admin") {
     return (
@@ -128,12 +165,12 @@ function App() {
           </section>
         )}
 
-        {page === "book" && <BookingForm lang={lang} serviceSlug={serviceSlug} direction={direction} onDone={(msg) => setNotice(msg)} />}
+        {page === "book" && <BookingForm lang={lang} serviceSlug={serviceSlug} direction={direction} onDone={setNotice} />}
         {page === "prices" && <Prices lang={lang} onBack={() => setPage("home")} />}
         {page === "contacts" && <Contacts lang={lang} onBack={() => setPage("home")} />}
-        {page === "receipt" && <ReceiptUpload lang={lang} onDone={(msg) => setNotice(msg)} />}
+        {page === "receipt" && <ReceiptUpload lang={lang} onDone={setNotice} />}
 
-        {notice && <div className="toast">{notice}</div>}
+        {notice && <div className={`toast ${notice.kind}`}>{notice.message}</div>}
       </main>
       <nav className="bottom-nav">
         <button className={page === "home" ? "active" : ""} onClick={() => setPage("home")} type="button">MBPG</button>
@@ -158,67 +195,98 @@ function BackButton({ onClick, label }: { onClick: () => void; label: string }) 
   return <button className="back" onClick={onClick} type="button"><ArrowLeft size={17} />{label}</button>;
 }
 
-function BookingForm({ lang, direction, serviceSlug, onDone }: { lang: Lang; direction: Direction; serviceSlug: string; onDone: (message: string) => void }) {
+function BookingForm({ lang, direction, serviceSlug, onDone }: { lang: Lang; direction: Direction; serviceSlug: string; onDone: (notice: Notice) => void }) {
   const t = copy[lang];
+  const action = actionCopy[lang];
   const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<Notice | null>(null);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setBusy(true);
-    const form = new FormData(event.currentTarget);
-    await apiJson("/api/leads", {
-      method: "POST",
-      body: JSON.stringify({
-        languageCode: lang,
-        parentName: form.get("parentName"),
-        phone: form.get("phone"),
-        childName: form.get("childName"),
-        childAge: form.get("childAge"),
-        direction,
-        serviceSlug,
-        branch: form.get("branch"),
-        preferredTime: form.get("preferredTime"),
-        comment: form.get("comment")
-      })
-    });
-    event.currentTarget.reset();
-    setBusy(false);
-    onDone(t.sent);
+    setStatus(null);
+
+    try {
+      const form = new FormData(formElement);
+      const result = await apiJson<{ message?: string }>("/api/leads", {
+        method: "POST",
+        body: JSON.stringify({
+          languageCode: lang,
+          parentName: form.get("parentName"),
+          phone: form.get("phone"),
+          childName: form.get("childName"),
+          childAge: form.get("childAge"),
+          direction,
+          serviceSlug,
+          branch: form.get("branch"),
+          preferredTime: form.get("preferredTime"),
+          comment: form.get("comment")
+        })
+      });
+      formElement.reset();
+      const nextStatus = { kind: "success" as const, message: result.message ?? action.leadSuccess };
+      setStatus(nextStatus);
+      onDone(nextStatus);
+    } catch {
+      const nextStatus = { kind: "error" as const, message: action.requestError };
+      setStatus(nextStatus);
+      onDone(nextStatus);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <section className="panel">
       <h2>{t.formTitle}</h2>
       <form className="form" onSubmit={(event) => void submit(event)}>
-        <input name="parentName" placeholder={t.parentName} required />
-        <input name="phone" placeholder={t.phone} required type="tel" />
-        <input name="childName" placeholder={t.childName} required />
-        <input name="childAge" placeholder={t.childAge} required />
-        <select name="branch" required defaultValue={direction === "gym" ? "Gym Gorgasali 127" : "Pool Javakhishvili 28"}>
-          <option>Pool Javakhishvili 28</option>
-          <option>Gym Gorgasali 127</option>
-        </select>
-        <input name="preferredTime" placeholder={t.preferredTime} />
-        <textarea name="comment" placeholder={t.comment} rows={4} />
-        <button className="wide-action" disabled={busy} type="submit">{t.submit}</button>
+        <fieldset disabled={busy}>
+          <input name="parentName" placeholder={t.parentName} required />
+          <input name="phone" placeholder={t.phone} required type="tel" />
+          <input name="childName" placeholder={t.childName} required />
+          <input name="childAge" placeholder={t.childAge} required />
+          <select name="branch" required defaultValue={direction === "gym" ? "Gym Gorgasali 127" : "Pool Javakhishvili 28"}>
+            <option>Pool Javakhishvili 28</option>
+            <option>Gym Gorgasali 127</option>
+          </select>
+          <input name="preferredTime" placeholder={t.preferredTime} />
+          <textarea name="comment" placeholder={t.comment} rows={4} />
+        </fieldset>
+        {status && <div className={`form-status ${status.kind}`}>{status.message}</div>}
+        <button className="wide-action" disabled={busy} type="submit">{busy ? action.sending : t.submit}</button>
       </form>
     </section>
   );
 }
 
-function ReceiptUpload({ lang, onDone }: { lang: Lang; onDone: (message: string) => void }) {
+function ReceiptUpload({ lang, onDone }: { lang: Lang; onDone: (notice: Notice) => void }) {
   const t = copy[lang];
+  const action = actionCopy[lang];
   const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<Notice | null>(null);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    form.append("languageCode", lang);
+    const formElement = event.currentTarget;
     setBusy(true);
-    await apiForm("/api/receipts", form);
-    event.currentTarget.reset();
-    setBusy(false);
-    onDone(t.receiptHelp);
+    setStatus(null);
+
+    try {
+      const form = new FormData(formElement);
+      form.append("languageCode", lang);
+      const result = await apiForm<{ message?: string }>("/api/receipts", form);
+      formElement.reset();
+      const nextStatus = { kind: "success" as const, message: result.message ?? action.receiptSuccess };
+      setStatus(nextStatus);
+      onDone(nextStatus);
+    } catch {
+      const nextStatus = { kind: "error" as const, message: action.requestError };
+      setStatus(nextStatus);
+      onDone(nextStatus);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -226,8 +294,11 @@ function ReceiptUpload({ lang, onDone }: { lang: Lang; onDone: (message: string)
       <h2>{t.receiptTitle}</h2>
       <p>{t.receiptHelp}</p>
       <form className="form" onSubmit={(event) => void submit(event)}>
-        <input accept="image/*,application/pdf" name="receipt" required type="file" />
-        <button className="wide-action" disabled={busy} type="submit">{t.upload}</button>
+        <fieldset disabled={busy}>
+          <input accept="image/*,application/pdf" name="receipt" required type="file" />
+        </fieldset>
+        {status && <div className={`form-status ${status.kind}`}>{status.message}</div>}
+        <button className="wide-action" disabled={busy} type="submit">{busy ? action.uploading : t.upload}</button>
       </form>
     </section>
   );
