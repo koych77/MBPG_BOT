@@ -1,6 +1,5 @@
-import { bot } from "./index.js";
-import { env } from "../env.js";
+import { sendAdminNotification } from "./notifications.js";
 
 export async function notifyAdmins(message: string) {
-  await Promise.allSettled(env.adminTelegramIds.map((id) => bot.api.sendMessage(id, message)));
+  await sendAdminNotification(message, { type: "admin_event" });
 }

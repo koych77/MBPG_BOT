@@ -43,6 +43,11 @@ enum LessonStatus {
   CANCELED
 }
 
+enum NotificationStatus {
+  SENT
+  FAILED
+}
+
 model Client {
   id             String   @id @default(cuid())
   projectKey     String   @default("mbpg")
@@ -62,6 +67,7 @@ model Client {
   reminders      Reminder[]
   enrollments    Enrollment[]
   lessons        Lesson[]
+  notifications  NotificationLog[]
 
   @@unique([projectKey, telegramId])
   @@index([projectKey])
@@ -199,6 +205,27 @@ model Broadcast {
   sentAt      DateTime?
 
   @@index([projectKey, createdAt])
+}
+
+model NotificationLog {
+  id             String             @id @default(cuid())
+  projectKey     String             @default("mbpg")
+  clientId       String?
+  client         Client?            @relation(fields: [clientId], references: [id])
+  telegramId     BigInt?
+  audience       String
+  type           String
+  title          String?
+  message        String
+  status         NotificationStatus
+  error          String?
+  relatedModel   String?
+  relatedId      String?
+  createdAt      DateTime           @default(now())
+
+  @@index([projectKey, createdAt])
+  @@index([projectKey, type])
+  @@index([projectKey, status])
 }
 
 model Coach {

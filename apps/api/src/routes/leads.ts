@@ -5,6 +5,7 @@ import { env } from "../env.js";
 import { requireTelegramUser } from "./auth.js";
 import { upsertClient } from "./clients.js";
 import { notifyAdmins } from "../bot/notify.js";
+import { sendClientNotification } from "../bot/notifications.js";
 
 export const leadsRouter = Router();
 
@@ -35,7 +36,7 @@ leadsRouter.post("/", async (req, res, next) => {
     const body = leadSchema.parse(req.body);
     const client = await upsertClient(user, body.languageCode, body.phone);
     const serviceSlugs = Array.from(new Set(
-      (body.serviceSlugs && body.serviceSlugs.length > 0 ? body.serviceSlugs : body.serviceSlug ? [body.serviceSlug] : [])
+      body.serviceSlugs && body.serviceSlugs.length > 0 ? body.serviceSlugs : body.serviceSlug ? [body.serviceSlug] : []
     ));
     const lead = await prisma.lead.create({
       data: {
@@ -51,10 +52,7 @@ leadsRouter.post("/", async (req, res, next) => {
         preferredTime: body.preferredTime,
         comment: body.comment,
         services: {
-          create: serviceSlugs.map((serviceSlug) => ({
-            serviceSlug,
-            direction: body.direction
-          }))
+          create: serviceSlugs.map((serviceSlug) => ({ serviceSlug, direction: body.direction }))
         }
       },
       include: { services: true }
@@ -76,20 +74,19 @@ leadsRouter.post("/", async (req, res, next) => {
       ].filter(Boolean).join("\n")
     );
 
-    await import("../bot/index.js").then(({ bot }) =>
-      bot.api.sendMessage(
-        client.telegramId.toString(),
-        [
-          "Ваша заявка MBPG принята.",
-          "",
-          `Направление: ${directionLabel(lead.direction)}`,
-          lead.services.length > 0 ? `Занятия: ${lead.services.map((service) => service.serviceSlug).join(", ")}` : undefined,
-          `Филиал: ${lead.branch}`,
-          "",
-          "Администратор получил уведомление и свяжется с вами, чтобы подтвердить удобное время занятия."
-        ].filter(Boolean).join("\n")
-      )
-    ).catch(() => undefined);
+    await sendClientNotification(
+      client,
+      [
+        "Ваша заявка MBPG принята.",
+        "",
+        `Направление: ${directionLabel(lead.direction)}`,
+        lead.services.length > 0 ? `Занятия: ${lead.services.map((service) => service.serviceSlug).join(", ")}` : undefined,
+        `Филиал: ${lead.branch}`,
+        "",
+        "Администратор получил уведомление и свяжется с вами, чтобы подтвердить удобное время занятия."
+      ].filter(Boolean).join("\n"),
+      { type: "lead_created", title: "Заявка принята", relatedModel: "Lead", relatedId: lead.id }
+    );
 
     res.status(201).json({
       lead,

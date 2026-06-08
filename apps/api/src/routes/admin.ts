@@ -6,6 +6,7 @@ import { prisma } from "../prisma.js";
 import { env } from "../env.js";
 import { requireAdmin } from "./auth.js";
 import { bot } from "../bot/index.js";
+import { sendAdminNotification, sendClientNotification } from "../bot/notifications.js";
 
 export const adminRouter = Router();
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -26,7 +27,7 @@ adminRouter.use((req, _res, next) => {
 
 adminRouter.get("/overview", async (_req, res, next) => {
   try {
-    const [clients, leads, receipts, reminders, broadcasts, enrollments, lessons, coaches, posts, recentClients, recentLeads, recentReceipts, recentReminders, recentBroadcasts, recentEnrollments, recentLessons, recentCoaches, recentPosts] = await Promise.all([
+    const [clients, leads, receipts, reminders, broadcasts, enrollments, lessons, coaches, posts, notifications, recentClients, recentLeads, recentReceipts, recentReminders, recentBroadcasts, recentEnrollments, recentLessons, recentCoaches, recentPosts, recentNotifications] = await Promise.all([
       prisma.client.count({ where: { projectKey: env.projectKey } }),
       prisma.lead.count({ where: { projectKey: env.projectKey } }),
       prisma.receipt.count({ where: { projectKey: env.projectKey } }),
@@ -36,6 +37,7 @@ adminRouter.get("/overview", async (_req, res, next) => {
       prisma.lesson.count({ where: { projectKey: env.projectKey } }),
       prisma.coach.count({ where: { projectKey: env.projectKey } }),
       prisma.contentPost.count({ where: { projectKey: env.projectKey } }),
+      prisma.notificationLog.count({ where: { projectKey: env.projectKey } }),
       prisma.client.findMany({
         where: { projectKey: env.projectKey },
         include: {
@@ -89,11 +91,17 @@ adminRouter.get("/overview", async (_req, res, next) => {
         where: { projectKey: env.projectKey },
         orderBy: { updatedAt: "desc" },
         take: 40
+      }),
+      prisma.notificationLog.findMany({
+        where: { projectKey: env.projectKey },
+        include: { client: true },
+        orderBy: { createdAt: "desc" },
+        take: 60
       })
     ]);
 
     res.json({
-      stats: { clients, leads, receipts, reminders, broadcasts, enrollments, lessons, coaches, posts },
+      stats: { clients, leads, receipts, reminders, broadcasts, enrollments, lessons, coaches, posts, notifications },
       recentClients: recentClients.map((client) => ({
         ...client,
         telegramId: client.telegramId.toString()
@@ -122,7 +130,12 @@ adminRouter.get("/overview", async (_req, res, next) => {
         client: { ...lesson.client, telegramId: lesson.client.telegramId.toString() }
       })),
       recentCoaches: recentCoaches.map((coach) => ({ ...coach, photoData: undefined, hasPhoto: Boolean(coach.photoData) })),
-      recentPosts: recentPosts.map((post) => ({ ...post, imageData: undefined, hasImage: Boolean(post.imageData) }))
+      recentPosts: recentPosts.map((post) => ({ ...post, imageData: undefined, hasImage: Boolean(post.imageData) })),
+      recentNotifications: recentNotifications.map((notification) => ({
+        ...notification,
+        telegramId: notification.telegramId?.toString(),
+        client: notification.client ? { ...notification.client, telegramId: notification.client.telegramId.toString() } : null
+      }))
     });
   } catch (error) {
     next(error);
@@ -138,8 +151,22 @@ adminRouter.patch("/leads/:id/status", async (req, res, next) => {
     const body = leadStatusSchema.parse(req.body);
     const lead = await prisma.lead.update({
       where: { id: String(req.params.id) },
-      data: { status: body.status }
+      data: { status: body.status },
+      include: { client: true }
     });
+    if (body.status === "BOOKED") {
+      await sendClientNotification(
+        lead.client,
+        [
+          "Ваша запись MBPG подтверждена.",
+          "",
+          `Ребенок: ${lead.childName}`,
+          `Филиал: ${lead.branch}`,
+          lead.preferredTime ? `Время: ${lead.preferredTime}` : undefined
+        ].filter(Boolean).join("\n"),
+        { type: "lead_booked", title: "Запись подтверждена", relatedModel: "Lead", relatedId: lead.id }
+      );
+    }
     res.json({ lead });
   } catch (error) {
     next(error);
@@ -156,8 +183,18 @@ adminRouter.patch("/receipts/:id/status", async (req, res, next) => {
     const body = receiptStatusSchema.parse(req.body);
     const receipt = await prisma.receipt.update({
       where: { id: String(req.params.id) },
-      data: { status: body.status, adminNote: body.adminNote }
+      data: { status: body.status, adminNote: body.adminNote },
+      include: { client: true }
     });
+    if (body.status === "APPROVED" || body.status === "REJECTED") {
+      await sendClientNotification(
+        receipt.client,
+        body.status === "APPROVED"
+          ? "Оплата MBPG подтверждена. Чек принят администратором."
+          : "Чек MBPG отклонен. Пожалуйста, свяжитесь с администратором или отправьте корректный чек.",
+        { type: body.status === "APPROVED" ? "receipt_approved" : "receipt_rejected", title: "Статус чека", relatedModel: "Receipt", relatedId: receipt.id }
+      );
+    }
     res.json({ receipt: { ...receipt, data: undefined } });
   } catch (error) {
     next(error);
@@ -268,8 +305,20 @@ adminRouter.post("/lessons", async (req, res, next) => {
         branch: body.branch,
         startsAt: new Date(body.startsAt),
         note: body.note
-      }
+      },
+      include: { client: true, enrollment: true }
     });
+    await sendClientNotification(
+      lesson.client,
+      [
+        "Вам назначено занятие MBPG.",
+        "",
+        `Занятие: ${lesson.title}`,
+        `Дата и время: ${lesson.startsAt.toLocaleString("ru-RU")}`,
+        lesson.branch ? `Филиал: ${lesson.branch}` : undefined
+      ].filter(Boolean).join("\n"),
+      { type: "lesson_scheduled", title: "Занятие назначено", relatedModel: "Lesson", relatedId: lesson.id }
+    );
     res.status(201).json({ lesson });
   } catch (error) {
     next(error);
@@ -283,17 +332,47 @@ const lessonStatusSchema = z.object({
 adminRouter.patch("/lessons/:id/status", async (req, res, next) => {
   try {
     const body = lessonStatusSchema.parse(req.body);
-    const previous = await prisma.lesson.findUnique({ where: { id: req.params.id } });
+    const previous = await prisma.lesson.findUnique({ where: { id: String(req.params.id) } });
     const lesson = await prisma.lesson.update({
       where: { id: String(req.params.id) },
-      data: { status: body.status }
+      data: { status: body.status },
+      include: { client: true, enrollment: true }
     });
 
     if (lesson.enrollmentId && previous?.status !== "ATTENDED" && body.status === "ATTENDED") {
-      await prisma.enrollment.update({
+      const enrollment = await prisma.enrollment.update({
         where: { id: lesson.enrollmentId },
         data: { usedLessons: { increment: 1 } }
       });
+      const remainingLessons = Math.max(enrollment.totalLessons - enrollment.usedLessons, 0);
+      await sendClientNotification(
+        lesson.client,
+        [
+          "Посещение MBPG отмечено.",
+          "",
+          `Занятие: ${lesson.title}`,
+          enrollment.totalLessons > 0 ? `Осталось занятий: ${remainingLessons}` : undefined
+        ].filter(Boolean).join("\n"),
+        { type: "lesson_attended", title: "Посещение отмечено", relatedModel: "Lesson", relatedId: lesson.id }
+      );
+      if (remainingLessons === 2 || remainingLessons === 0) {
+        await sendClientNotification(
+          lesson.client,
+          remainingLessons === 2
+            ? "У вас осталось 2 занятия в абонементе MBPG. Рекомендуем заранее продлить абонемент."
+            : "Ваш абонемент MBPG закончился. Свяжитесь с администратором для продления.",
+          { type: remainingLessons === 2 ? "subscription_low" : "subscription_empty", title: "Абонемент", relatedModel: "Enrollment", relatedId: enrollment.id }
+        );
+        await sendAdminNotification(
+          [
+            remainingLessons === 2 ? "У клиента осталось 2 занятия." : "У клиента закончился абонемент.",
+            `TG ${lesson.client.telegramId.toString()}`,
+            `Абонемент: ${enrollment.title}`,
+            `Занятие: ${lesson.title}`
+          ].join("\n"),
+          { type: remainingLessons === 2 ? "admin_subscription_low" : "admin_subscription_empty", title: "Абонемент клиента", relatedModel: "Enrollment", relatedId: enrollment.id }
+        );
+      }
     }
 
     if (lesson.enrollmentId && previous?.status === "ATTENDED" && body.status !== "ATTENDED") {

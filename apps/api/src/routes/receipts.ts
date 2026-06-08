@@ -6,6 +6,7 @@ import { env } from "../env.js";
 import { requireAdmin, requireTelegramUser } from "./auth.js";
 import { upsertClient } from "./clients.js";
 import { notifyAdmins } from "../bot/notify.js";
+import { sendClientNotification } from "../bot/notifications.js";
 
 export const receiptsRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -51,18 +52,17 @@ receiptsRouter.post("/", upload.single("receipt"), async (req, res, next) => {
       ].join("\n")
     );
 
-    await import("../bot/index.js").then(({ bot }) =>
-      bot.api.sendMessage(
-        client.telegramId.toString(),
-        [
-          "Чек MBPG получен.",
-          "",
-          `Файл: ${receipt.fileName}`,
-          "",
-          "Администратор уже получил уведомление и проверит оплату."
-        ].join("\n")
-      )
-    ).catch(() => undefined);
+    await sendClientNotification(
+      client,
+      [
+        "Чек MBPG получен.",
+        "",
+        `Файл: ${receipt.fileName}`,
+        "",
+        "Администратор уже получил уведомление и проверит оплату."
+      ].join("\n"),
+      { type: "receipt_created", title: "Чек получен", relatedModel: "Receipt", relatedId: receipt.id }
+    );
 
     res.status(201).json({
       receipt: { ...receipt, data: undefined },

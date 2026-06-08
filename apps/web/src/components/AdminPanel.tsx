@@ -16,7 +16,7 @@ type ClientSummary = {
 };
 
 type Overview = {
-  stats: { clients: number; leads: number; receipts: number; reminders: number; broadcasts: number; enrollments: number; lessons: number; coaches: number; posts: number };
+  stats: { clients: number; leads: number; receipts: number; reminders: number; broadcasts: number; enrollments: number; lessons: number; coaches: number; posts: number; notifications: number };
   recentClients: ClientSummary[];
   recentLeads: Array<{
     id: string;
@@ -73,6 +73,18 @@ type Overview = {
     isPublished: boolean;
     hasImage: boolean;
     createdAt: string;
+  }>;
+  recentNotifications: Array<{
+    id: string;
+    audience: string;
+    type: string;
+    title?: string;
+    message: string;
+    status: string;
+    error?: string;
+    telegramId?: string;
+    createdAt: string;
+    client?: { telegramId: string; username?: string; firstName?: string } | null;
   }>;
 };
 
@@ -240,6 +252,7 @@ export function AdminPanel({ lang }: { lang: Lang }) {
           <span>Lessons: {data.stats.lessons}</span>
           <span>Coaches: {data.stats.coaches}</span>
           <span>Posts: {data.stats.posts}</span>
+          <span>Notifications: {data.stats.notifications}</span>
           <span>Reminders: {data.stats.reminders}</span>
         </div>
       </section>
@@ -333,6 +346,24 @@ export function AdminPanel({ lang }: { lang: Lang }) {
                 <p>{post.type} - {post.languageCode} - {post.direction || "all"} - {post.isPublished ? "published" : "draft"}</p>
                 <small>{post.body.slice(0, 120)}</small>
                 {post.hasImage && <a href={contentPostImageUrl(post.id)} target="_blank" rel="noreferrer">Open image</a>}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel">
+        <h2>Notification log</h2>
+        <div className="admin-list">
+          {data.recentNotifications.map((notification) => (
+            <article className="admin-item" key={notification.id}>
+              <div>
+                <strong>{notification.type} - {notification.status}</strong>
+                <p>{notification.message}</p>
+                <small>
+                  {notification.audience} - TG {notification.telegramId || notification.client?.telegramId || "-"} - {new Date(notification.createdAt).toLocaleString()}
+                  {notification.error ? ` - ${notification.error}` : ""}
+                </small>
               </div>
             </article>
           ))}
