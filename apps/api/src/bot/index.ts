@@ -6,6 +6,14 @@ import { prisma } from "../prisma.js";
 export const bot = new Bot(env.botToken);
 const webhookPath = "/telegram/webhook";
 
+async function safeTelegramSetup(label: string, action: () => Promise<unknown>) {
+  try {
+    await action();
+  } catch (error) {
+    console.warn(`Telegram setup skipped: ${label}`, error instanceof Error ? error.message : error);
+  }
+}
+
 bot.command("start", async (ctx) => {
   const from = ctx.from;
   let isFirstStart = false;
@@ -65,18 +73,19 @@ bot.command("start", async (ctx) => {
         "Мы помогаем детям расти активными, здоровыми и уверенными через воду, движение и заботу.",
         "",
         "<b>Что можно сделать в приложении:</b>",
-        "• выбрать направление Pool или Gym;",
-        "• посмотреть услуги, цены и адреса;",
-        "• записаться на пробное занятие;",
-        "• отправить чек об оплате;",
-        "• быстро связаться с администратором.",
+        "- выбрать направление Pool или Gym;",
+        "- посмотреть услуги, цены и адреса;",
+        "- записаться на одно или несколько занятий;",
+        "- открыть кабинет клиента;",
+        "- отправить чек об оплате;",
+        "- быстро связаться с администратором.",
         "",
         "<b>Нажмите кнопку «Открыть Mini App» ниже.</b>"
       ].join("\n")
     : [
         `<b>С возвращением${name}!</b>`,
         "",
-        "Откройте MBPG Mini App, чтобы посмотреть услуги, цены, записаться или отправить чек."
+        "Откройте MBPG Mini App, чтобы посмотреть кабинет, услуги, цены, записаться или отправить чек."
       ].join("\n");
 
   await ctx.reply(message, {
@@ -103,26 +112,33 @@ export async function startBot() {
 
   const webhookUrl = `${env.apiPublicUrl}${webhookPath}`;
 
-  await bot.api.setMyName("MBPG");
-  await bot.api.setMyShortDescription("Детский бассейн, гимнастика, спорт и массаж в Батуми.");
-  await bot.api.setMyDescription(
-    [
-      "MBPG - детский бассейн и спортивные занятия в Батуми.",
-      "",
-      "Откройте Mini App, чтобы выбрать Pool или Gym, посмотреть цены и записаться на пробное занятие."
-    ].join("\n")
+  await safeTelegramSetup("setMyName", () => bot.api.setMyName("MBPG"));
+  await safeTelegramSetup("setMyShortDescription", () => bot.api.setMyShortDescription("Детский бассейн, гимнастика, спорт и массаж в Батуми."));
+  await safeTelegramSetup("setMyDescription", () =>
+    bot.api.setMyDescription(
+      [
+        "MBPG - детский бассейн и спортивные занятия в Батуми.",
+        "",
+        "Откройте Mini App, чтобы выбрать занятия, посмотреть цены, записаться и открыть кабинет клиента."
+      ].join("\n")
+    )
   );
-  await bot.api.setMyCommands([
-    { command: "start", description: "Открыть MBPG Mini App" },
-    { command: "admin", description: "Открыть админку" }
-  ]);
-  await bot.api.setChatMenuButton({
-    menu_button: {
-      type: "web_app",
-      text: "MBPG",
-      web_app: { url: env.webAppUrl }
-    }
-  });
+  await safeTelegramSetup("setMyCommands", () =>
+    bot.api.setMyCommands([
+      { command: "start", description: "Открыть MBPG Mini App" },
+      { command: "admin", description: "Открыть админку" }
+    ])
+  );
+  await safeTelegramSetup("setChatMenuButton", () =>
+    bot.api.setChatMenuButton({
+      menu_button: {
+        type: "web_app",
+        text: "MBPG",
+        web_app: { url: env.webAppUrl }
+      }
+    })
+  );
+
   await bot.api.setWebhook(webhookUrl, {
     allowed_updates: ["message", "callback_query"]
   });
