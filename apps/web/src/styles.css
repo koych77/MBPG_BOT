@@ -709,6 +709,127 @@ details .form {
   gap: 10px;
 }
 
+.crm-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.crm-client-list {
+  max-height: 680px;
+  overflow: auto;
+}
+
+.crm-client-button {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  color: var(--ink);
+  text-align: left;
+  background: #fbfdff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.crm-client-button.active {
+  background: #eef9ff;
+  border-color: var(--blue);
+}
+
+.crm-client-button span,
+.crm-client-button small {
+  color: var(--muted);
+}
+
+.crm-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.crm-card-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  background: #fbfdff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.crm-card-header h3,
+.crm-block h4 {
+  margin: 0;
+}
+
+.crm-card-header p {
+  margin: 5px 0;
+  color: var(--muted);
+}
+
+.crm-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.crm-badges span {
+  padding: 7px 9px;
+  color: var(--ink);
+  background: var(--yellow);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.crm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.crm-block {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  background: #fbfdff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.compact-form {
+  gap: 8px;
+}
+
+.mini-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mini-list p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.crm-lesson-row {
+  display: grid;
+  grid-template-columns: 1fr 132px;
+  gap: 10px;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.crm-lesson-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 .admin-item {
   display: grid;
   grid-template-columns: 1fr 150px;
@@ -763,8 +884,16 @@ details .form {
   .facts,
   .stats,
   .admin-tabs,
+  .crm-layout,
+  .crm-grid,
+  .crm-card-header,
+  .crm-lesson-row,
   .admin-item {
     grid-template-columns: 1fr;
+  }
+
+  .crm-badges {
+    justify-content: flex-start;
   }
 
   .panel {

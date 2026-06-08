@@ -209,6 +209,56 @@ const reminderSchema = z.object({
   dueAt: z.string().datetime()
 });
 
+const clientNotesSchema = z.object({
+  notes: z.string().max(3000).optional().default("")
+});
+
+adminRouter.patch("/clients/:id/notes", async (req, res, next) => {
+  try {
+    const body = clientNotesSchema.parse(req.body);
+    const client = await prisma.client.findFirst({
+      where: { id: String(req.params.id), projectKey: env.projectKey }
+    });
+    if (!client) {
+      res.status(404).json({ error: "Client not found" });
+      return;
+    }
+    const updatedClient = await prisma.client.update({
+      where: { id: client.id },
+      data: { notes: body.notes }
+    });
+    res.json({ client: { ...updatedClient, telegramId: updatedClient.telegramId.toString() } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const directMessageSchema = z.object({
+  message: z.string().min(3).max(2000)
+});
+
+adminRouter.post("/clients/:id/message", async (req, res, next) => {
+  try {
+    const body = directMessageSchema.parse(req.body);
+    const client = await prisma.client.findFirst({
+      where: { id: String(req.params.id), projectKey: env.projectKey }
+    });
+    if (!client) {
+      res.status(404).json({ error: "Client not found" });
+      return;
+    }
+    const sent = await sendClientNotification(client, body.message, {
+      type: "admin_direct_message",
+      title: "Message from admin",
+      relatedModel: "Client",
+      relatedId: client.id
+    });
+    res.json({ ok: sent });
+  } catch (error) {
+    next(error);
+  }
+});
+
 adminRouter.post("/reminders", async (req, res, next) => {
   try {
     const body = reminderSchema.parse(req.body);

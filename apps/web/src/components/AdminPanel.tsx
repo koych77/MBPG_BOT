@@ -12,6 +12,7 @@ type ClientSummary = {
   lastName?: string;
   languageCode: string;
   phone?: string;
+  notes?: string;
   lastSeenAt: string;
   leads: Array<{ id: string; childName: string; childAge: string; direction: string; status: string }>;
   enrollments: Array<{ id: string; title: string; totalLessons: number; usedLessons: number; status: string }>;
@@ -26,15 +27,15 @@ type LeadSummary = {
   direction: string;
   branch: string;
   status: string;
-  client: { telegramId: string; username?: string };
+  client: { id?: string; telegramId: string; username?: string };
 };
 
 type Overview = {
   stats: { clients: number; leads: number; receipts: number; reminders: number; broadcasts: number; enrollments: number; lessons: number; coaches: number; posts: number; notifications: number };
   recentClients: ClientSummary[];
   recentLeads: LeadSummary[];
-  recentReceipts: Array<{ id: string; fileName: string; mimeType: string; status: string; client: { telegramId: string; username?: string } }>;
-  recentReminders: Array<{ id: string; type: string; message: string; dueAt: string; status: string; client: { telegramId: string; username?: string } }>;
+  recentReceipts: Array<{ id: string; fileName: string; mimeType: string; status: string; client: { id?: string; telegramId: string; username?: string } }>;
+  recentReminders: Array<{ id: string; type: string; message: string; dueAt: string; status: string; client: { id?: string; telegramId: string; username?: string } }>;
   recentBroadcasts: Array<{ id: string; title: string; sentCount: number; failedCount: number; sentAt?: string; createdAt: string }>;
   recentEnrollments: Array<{ id: string; title: string; branch?: string; totalLessons: number; usedLessons: number; remainingLessons: number; status: string; client: { id: string; telegramId: string; username?: string; firstName?: string } }>;
   recentLessons: Array<{ id: string; title: string; branch?: string; startsAt: string; status: string; client: { telegramId: string; username?: string; firstName?: string }; enrollment?: { id: string; title: string } }>;
@@ -50,6 +51,7 @@ export function AdminPanel({ lang }: { lang: Lang }) {
   const [busy, setBusy] = useState("");
   const [tab, setTab] = useState<AdminTab>("work");
   const [query, setQuery] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState("");
 
   async function load() {
     try {
@@ -174,6 +176,31 @@ export function AdminPanel({ lang }: { lang: Lang }) {
     await load();
   }
 
+  async function sendClientMessage(event: FormEvent<HTMLFormElement>, clientId: string) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy(`message:${clientId}`);
+    await apiJson(`/api/admin/clients/${clientId}/message`, {
+      method: "POST",
+      body: JSON.stringify({ message: form.get("message") })
+    });
+    event.currentTarget.reset();
+    setBusy("");
+    await load();
+  }
+
+  async function saveClientNotes(event: FormEvent<HTMLFormElement>, clientId: string) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy(`notes:${clientId}`);
+    await apiJson(`/api/admin/clients/${clientId}/notes`, {
+      method: "PATCH",
+      body: JSON.stringify({ notes: form.get("notes") })
+    });
+    setBusy("");
+    await load();
+  }
+
   const todayLessons = useMemo(() => {
     if (!data) return [];
     const today = new Date().toDateString();
@@ -187,6 +214,7 @@ export function AdminPanel({ lang }: { lang: Lang }) {
     const text = [client.telegramId, client.username, client.firstName, client.lastName, client.phone].filter(Boolean).join(" ").toLowerCase();
     return text.includes(query.toLowerCase());
   }) ?? [];
+  const selectedClient = data?.recentClients.find((client) => client.id === selectedClientId) ?? filteredClients[0];
 
   if (error) {
     return (
@@ -282,18 +310,30 @@ export function AdminPanel({ lang }: { lang: Lang }) {
         <section className="panel">
           <h2>Клиенты</h2>
           <input className="search-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по имени, телефону, Telegram ID" />
-          <div className="admin-list">
-            {filteredClients.map((client) => (
-              <article className="admin-item crm-item" key={client.id}>
-                <div>
+          <div className="crm-layout">
+            <div className="admin-list crm-client-list">
+              {filteredClients.map((client) => (
+                <button className={`crm-client-button ${selectedClient?.id === client.id ? "active" : ""}`} key={client.id} onClick={() => setSelectedClientId(client.id)} type="button">
                   <strong>{client.firstName || client.username || "Telegram client"}</strong>
-                  <p>TG {client.telegramId}{client.username ? ` - @${client.username}` : ""}{client.phone ? ` - ${client.phone}` : ""}</p>
-                  <small>Language {client.languageCode} - last seen {new Date(client.lastSeenAt).toLocaleString()}</small>
-                  {client.leads[0] && <p>Last request: {client.leads[0].childName}, {client.leads[0].childAge} - {client.leads[0].status}</p>}
-                  {client.enrollments[0] && <p>Subscription: {client.enrollments[0].title} - {client.enrollments[0].usedLessons}/{client.enrollments[0].totalLessons}</p>}
-                </div>
-              </article>
-            ))}
+                  <span>TG {client.telegramId}{client.username ? ` - @${client.username}` : ""}</span>
+                  <small>{client.phone || "phone not set"}</small>
+                </button>
+              ))}
+            </div>
+            {selectedClient ? (
+              <ClientCard
+                busy={busy}
+                client={selectedClient}
+                createEnrollment={createEnrollment}
+                createLesson={createLesson}
+                data={data}
+                saveClientNotes={saveClientNotes}
+                sendClientMessage={sendClientMessage}
+                updateLesson={updateLesson}
+              />
+            ) : (
+              <p className="muted">Клиенты не найдены.</p>
+            )}
           </div>
         </section>
       )}
@@ -426,6 +466,138 @@ function TaskSection({ title, empty, children }: { title: string; empty: string;
       <div className="admin-list">{hasItems ? children : <p className="muted">{empty}</p>}</div>
     </section>
   );
+}
+
+function ClientCard({
+  busy,
+  client,
+  createEnrollment,
+  createLesson,
+  data,
+  saveClientNotes,
+  sendClientMessage,
+  updateLesson
+}: {
+  busy: string;
+  client: ClientSummary;
+  createEnrollment: (event: FormEvent<HTMLFormElement>) => void;
+  createLesson: (event: FormEvent<HTMLFormElement>) => void;
+  data: Overview;
+  saveClientNotes: (event: FormEvent<HTMLFormElement>, clientId: string) => void;
+  sendClientMessage: (event: FormEvent<HTMLFormElement>, clientId: string) => void;
+  updateLesson: (id: string, status: string) => void;
+}) {
+  const clientName = [client.firstName, client.lastName].filter(Boolean).join(" ") || client.username || "Telegram client";
+  const clientLeads = data.recentLeads.filter((lead) => lead.client.telegramId === client.telegramId);
+  const clientEnrollments = data.recentEnrollments.filter((enrollment) => enrollment.client.id === client.id || enrollment.client.telegramId === client.telegramId);
+  const clientLessons = data.recentLessons.filter((lesson) => lesson.client.telegramId === client.telegramId);
+  const clientReceipts = data.recentReceipts.filter((receipt) => receipt.client.telegramId === client.telegramId);
+  const clientReminders = data.recentReminders.filter((reminder) => reminder.client.telegramId === client.telegramId);
+  const clientNotifications = data.recentNotifications.filter((notification) => notification.telegramId === client.telegramId || notification.client?.telegramId === client.telegramId);
+
+  return (
+    <article className="crm-card">
+      <header className="crm-card-header">
+        <div>
+          <h3>{clientName}</h3>
+          <p>TG {client.telegramId}{client.username ? ` - @${client.username}` : ""}</p>
+          <small>Language {client.languageCode} - last seen {new Date(client.lastSeenAt).toLocaleString()}</small>
+        </div>
+        <div className="crm-badges">
+          <span>{clientLeads.length} заявки</span>
+          <span>{clientEnrollments.length} абонементы</span>
+          <span>{clientLessons.length} занятия</span>
+        </div>
+      </header>
+
+      <div className="crm-grid">
+        <section className="crm-block">
+          <h4>Связь и заметка</h4>
+          <p>{client.phone || "Телефон пока не указан"}</p>
+          <form className="form compact-form" onSubmit={(event) => void sendClientMessage(event, client.id)}>
+            <textarea name="message" placeholder="Сообщение клиенту в Telegram" required rows={3} />
+            <button className="wide-action" disabled={busy === `message:${client.id}`} type="submit">Отправить клиенту</button>
+          </form>
+          <form className="form compact-form" onSubmit={(event) => void saveClientNotes(event, client.id)}>
+            <textarea defaultValue={client.notes || ""} name="notes" placeholder="Внутренняя заметка администратора" rows={4} />
+            <button className="mini-button" disabled={busy === `notes:${client.id}`} type="submit">Сохранить заметку</button>
+          </form>
+        </section>
+
+        <section className="crm-block">
+          <h4>Назначить</h4>
+          <details>
+            <summary>Создать абонемент</summary>
+            <form className="form" onSubmit={(event) => void createEnrollment(event)}>
+              <input name="clientId" type="hidden" value={client.id} />
+              <input name="title" placeholder="Название абонемента" required />
+              <select name="direction" defaultValue="pool"><option value="pool">Pool</option><option value="gym">Gym</option><option value="massage">Massage</option></select>
+              <input name="branch" placeholder="Филиал" />
+              <input min="0" name="totalLessons" placeholder="Всего занятий" required type="number" />
+              <input min="0" name="usedLessons" placeholder="Уже отходил" type="number" />
+              <button className="wide-action" disabled={busy === "enrollment"} type="submit">Создать</button>
+            </form>
+          </details>
+          <details>
+            <summary>Назначить занятие</summary>
+            <form className="form" onSubmit={(event) => void createLesson(event)}>
+              <input name="clientId" type="hidden" value={client.id} />
+              <select name="enrollmentId"><option value="">Без абонемента</option>{clientEnrollments.map((enrollment) => <option key={enrollment.id} value={enrollment.id}>{enrollment.title} - осталось {enrollment.remainingLessons}</option>)}</select>
+              <input name="title" placeholder="Название занятия" required />
+              <input name="branch" placeholder="Филиал" />
+              <input name="startsAt" required type="datetime-local" />
+              <textarea name="note" placeholder="Заметка к занятию" rows={2} />
+              <button className="wide-action" disabled={busy === "lesson"} type="submit">Назначить</button>
+            </form>
+          </details>
+        </section>
+      </div>
+
+      <section className="crm-block">
+        <h4>Заявки</h4>
+        <MiniList empty="Заявок пока нет.">
+          {clientLeads.map((lead) => <p key={lead.id}>{lead.childName}, {lead.childAge} - {lead.direction} - {lead.branch} - {lead.status}</p>)}
+        </MiniList>
+      </section>
+
+      <section className="crm-block">
+        <h4>Абонементы</h4>
+        <MiniList empty="Абонементов пока нет.">
+          {clientEnrollments.map((enrollment) => <p key={enrollment.id}>{enrollment.title} - {enrollment.usedLessons}/{enrollment.totalLessons}, осталось {enrollment.remainingLessons} - {enrollment.status}</p>)}
+        </MiniList>
+      </section>
+
+      <section className="crm-block">
+        <h4>Занятия</h4>
+        <MiniList empty="Занятий пока нет.">
+          {clientLessons.map((lesson) => (
+            <div className="crm-lesson-row" key={lesson.id}>
+              <p>{new Date(lesson.startsAt).toLocaleString()} - {lesson.title} - {lesson.status}</p>
+              <div className="quick-actions">
+                <button onClick={() => void updateLesson(lesson.id, "ATTENDED")} type="button">Пришел</button>
+                <button onClick={() => void updateLesson(lesson.id, "MISSED")} type="button">Не пришел</button>
+                <button onClick={() => void updateLesson(lesson.id, "CANCELED")} type="button">Отмена</button>
+              </div>
+            </div>
+          ))}
+        </MiniList>
+      </section>
+
+      <section className="crm-block">
+        <h4>Оплаты и уведомления</h4>
+        <MiniList empty="Истории пока нет.">
+          {clientReceipts.map((receipt) => <p key={receipt.id}>Чек {receipt.fileName} - {receipt.status}</p>)}
+          {clientReminders.map((reminder) => <p key={reminder.id}>Напоминание {reminder.type} - {reminder.status} - {new Date(reminder.dueAt).toLocaleString()}</p>)}
+          {clientNotifications.slice(0, 8).map((notification) => <p key={notification.id}>{notification.type} - {notification.status} - {new Date(notification.createdAt).toLocaleString()}</p>)}
+        </MiniList>
+      </section>
+    </article>
+  );
+}
+
+function MiniList({ empty, children }: { empty: string; children: React.ReactNode[] }) {
+  const items = children.filter(Boolean);
+  return <div className="mini-list">{items.length ? items : <p className="muted">{empty}</p>}</div>;
 }
 
 function QuickForms({ data, busy, createEnrollment, createLesson }: { data: Overview; busy: string; createEnrollment: (event: FormEvent<HTMLFormElement>) => void; createLesson: (event: FormEvent<HTMLFormElement>) => void }) {
