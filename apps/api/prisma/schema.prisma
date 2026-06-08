@@ -200,3 +200,50 @@ model Broadcast {
 
   @@index([projectKey, createdAt])
 }
+
+model Coach {
+  id            String   @id @default(cuid())
+  projectKey    String   @default("mbpg")
+  name          String
+  direction     String
+  branch        String?
+  serviceSlugs  String[] @default([])
+  bio           String?
+  experience    String?
+  isActive      Boolean  @default(true)
+  photoFileName String?
+  photoMimeType String?
+  photoSize     Int?
+  photoData     Bytes?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([projectKey, direction])
+  @@index([projectKey, isActive])
+}
+
+model ContentPost {
+  id            String   @id @default(cuid())
+  projectKey    String   @default("mbpg")
+  type          String
+  languageCode  String   @default("ru")
+  title         String
+  body          String
+  direction     String?
+  serviceSlugs  String[] @default([])
+  ctaLabel      String?
+  ctaUrl        String?
+  startsAt      DateTime?
+  endsAt        DateTime?
+  isPublished   Boolean  @default(false)
+  imageFileName String?
+  imageMimeType String?
+  imageSize     Int?
+  imageData     Bytes?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([projectKey, type, isPublished])
+  @@index([projectKey, languageCode])
+  @@index([projectKey, createdAt])
+}

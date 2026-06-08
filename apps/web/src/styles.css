@@ -461,6 +461,89 @@ a {
   background: var(--blue-dark);
 }
 
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tabs button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  color: var(--muted);
+  background: #eef9ff;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.tabs button.active {
+  color: var(--ink);
+  background: var(--yellow);
+}
+
+.content-list {
+  display: grid;
+  gap: 12px;
+}
+
+.content-card {
+  display: grid;
+  gap: 12px;
+  overflow: hidden;
+  background: #fbfdff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.content-card > img,
+.photo-placeholder {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #eaf8ff;
+}
+
+.content-card > div:not(.photo-placeholder) {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.content-card h3 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.2;
+}
+
+.content-card p {
+  margin: 0;
+  color: #36576d;
+  line-height: 1.45;
+}
+
+.coach-card {
+  grid-template-columns: 120px 1fr;
+}
+
+.coach-card > img,
+.coach-card .photo-placeholder {
+  height: 100%;
+  min-height: 160px;
+  aspect-ratio: auto;
+}
+
+.photo-placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--blue-dark);
+  font-size: 40px;
+  font-weight: 900;
+}
+
 .contact-list {
   display: grid;
   gap: 10px;
@@ -490,7 +573,7 @@ a {
   width: 100%;
   transform: translateX(-50%);
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
   background: rgba(255, 255, 255, 0.94);

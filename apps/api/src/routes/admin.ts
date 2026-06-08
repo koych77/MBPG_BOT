@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Prisma } from "@prisma/client";
+import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../prisma.js";
 import { env } from "../env.js";
@@ -7,6 +8,7 @@ import { requireAdmin } from "./auth.js";
 import { bot } from "../bot/index.js";
 
 export const adminRouter = Router();
+const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 type LeadWithClient = Prisma.LeadGetPayload<{ include: { client: true } }>;
 type ReceiptWithClientAndLead = Prisma.ReceiptGetPayload<{ include: { client: true; lead: true } }>;
@@ -24,7 +26,7 @@ adminRouter.use((req, _res, next) => {
 
 adminRouter.get("/overview", async (_req, res, next) => {
   try {
-    const [clients, leads, receipts, reminders, broadcasts, enrollments, lessons, recentClients, recentLeads, recentReceipts, recentReminders, recentBroadcasts, recentEnrollments, recentLessons] = await Promise.all([
+    const [clients, leads, receipts, reminders, broadcasts, enrollments, lessons, coaches, posts, recentClients, recentLeads, recentReceipts, recentReminders, recentBroadcasts, recentEnrollments, recentLessons, recentCoaches, recentPosts] = await Promise.all([
       prisma.client.count({ where: { projectKey: env.projectKey } }),
       prisma.lead.count({ where: { projectKey: env.projectKey } }),
       prisma.receipt.count({ where: { projectKey: env.projectKey } }),
@@ -32,6 +34,8 @@ adminRouter.get("/overview", async (_req, res, next) => {
       prisma.broadcast.count({ where: { projectKey: env.projectKey } }),
       prisma.enrollment.count({ where: { projectKey: env.projectKey } }),
       prisma.lesson.count({ where: { projectKey: env.projectKey } }),
+      prisma.coach.count({ where: { projectKey: env.projectKey } }),
+      prisma.contentPost.count({ where: { projectKey: env.projectKey } }),
       prisma.client.findMany({
         where: { projectKey: env.projectKey },
         include: {
@@ -75,11 +79,21 @@ adminRouter.get("/overview", async (_req, res, next) => {
         include: { client: true, enrollment: true },
         orderBy: { startsAt: "asc" },
         take: 40
+      }),
+      prisma.coach.findMany({
+        where: { projectKey: env.projectKey },
+        orderBy: { updatedAt: "desc" },
+        take: 40
+      }),
+      prisma.contentPost.findMany({
+        where: { projectKey: env.projectKey },
+        orderBy: { updatedAt: "desc" },
+        take: 40
       })
     ]);
 
     res.json({
-      stats: { clients, leads, receipts, reminders, broadcasts, enrollments, lessons },
+      stats: { clients, leads, receipts, reminders, broadcasts, enrollments, lessons, coaches, posts },
       recentClients: recentClients.map((client) => ({
         ...client,
         telegramId: client.telegramId.toString()
@@ -106,7 +120,9 @@ adminRouter.get("/overview", async (_req, res, next) => {
       recentLessons: recentLessons.map((lesson: LessonWithClient) => ({
         ...lesson,
         client: { ...lesson.client, telegramId: lesson.client.telegramId.toString() }
-      }))
+      })),
+      recentCoaches: recentCoaches.map((coach) => ({ ...coach, photoData: undefined, hasPhoto: Boolean(coach.photoData) })),
+      recentPosts: recentPosts.map((post) => ({ ...post, imageData: undefined, hasImage: Boolean(post.imageData) }))
     });
   } catch (error) {
     next(error);
@@ -121,7 +137,7 @@ adminRouter.patch("/leads/:id/status", async (req, res, next) => {
   try {
     const body = leadStatusSchema.parse(req.body);
     const lead = await prisma.lead.update({
-      where: { id: req.params.id },
+      where: { id: String(req.params.id) },
       data: { status: body.status }
     });
     res.json({ lead });
@@ -139,7 +155,7 @@ adminRouter.patch("/receipts/:id/status", async (req, res, next) => {
   try {
     const body = receiptStatusSchema.parse(req.body);
     const receipt = await prisma.receipt.update({
-      where: { id: req.params.id },
+      where: { id: String(req.params.id) },
       data: { status: body.status, adminNote: body.adminNote }
     });
     res.json({ receipt: { ...receipt, data: undefined } });
@@ -220,7 +236,7 @@ adminRouter.patch("/enrollments/:id", async (req, res, next) => {
   try {
     const body = enrollmentStatusSchema.parse(req.body);
     const enrollment = await prisma.enrollment.update({
-      where: { id: req.params.id },
+      where: { id: String(req.params.id) },
       data: body
     });
     res.json({ enrollment });
@@ -269,7 +285,7 @@ adminRouter.patch("/lessons/:id/status", async (req, res, next) => {
     const body = lessonStatusSchema.parse(req.body);
     const previous = await prisma.lesson.findUnique({ where: { id: req.params.id } });
     const lesson = await prisma.lesson.update({
-      where: { id: req.params.id },
+      where: { id: String(req.params.id) },
       data: { status: body.status }
     });
 
@@ -289,6 +305,135 @@ adminRouter.patch("/lessons/:id/status", async (req, res, next) => {
     }
 
     res.json({ lesson });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const coachSchema = z.object({
+  name: z.string().min(2),
+  direction: z.enum(["pool", "gym", "massage"]),
+  branch: z.string().optional(),
+  serviceSlugs: z.string().optional(),
+  bio: z.string().optional(),
+  experience: z.string().optional(),
+  isActive: z.coerce.boolean().default(true)
+});
+
+adminRouter.post("/coaches", imageUpload.single("photo"), async (req, res, next) => {
+  try {
+    const body = coachSchema.parse(req.body);
+    const photoBytes = req.file ? new Uint8Array(req.file.buffer) : undefined;
+    const coach = await prisma.coach.create({
+      data: {
+        projectKey: env.projectKey,
+        name: body.name,
+        direction: body.direction,
+        branch: body.branch,
+        serviceSlugs: body.serviceSlugs ? body.serviceSlugs.split(",").map((item) => item.trim()).filter(Boolean) : [],
+        bio: body.bio,
+        experience: body.experience,
+        isActive: body.isActive,
+        photoFileName: req.file?.originalname,
+        photoMimeType: req.file?.mimetype,
+        photoSize: req.file?.size,
+        photoData: photoBytes
+      }
+    });
+    res.status(201).json({ coach: { ...coach, photoData: undefined } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const coachUpdateSchema = coachSchema.partial();
+
+adminRouter.patch("/coaches/:id", imageUpload.single("photo"), async (req, res, next) => {
+  try {
+    const body = coachUpdateSchema.parse(req.body);
+    const photoBytes = req.file ? new Uint8Array(req.file.buffer) : undefined;
+    const coach = await prisma.coach.update({
+      where: { id: String(req.params.id) },
+      data: {
+        ...body,
+        serviceSlugs: body.serviceSlugs ? body.serviceSlugs.split(",").map((item) => item.trim()).filter(Boolean) : undefined,
+        photoFileName: req.file?.originalname,
+        photoMimeType: req.file?.mimetype,
+        photoSize: req.file?.size,
+        photoData: photoBytes
+      }
+    });
+    res.json({ coach: { ...coach, photoData: undefined } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const postSchema = z.object({
+  type: z.enum(["news", "promo"]),
+  languageCode: z.enum(["ru", "ka", "en"]).default("ru"),
+  title: z.string().min(2),
+  body: z.string().min(3),
+  direction: z.enum(["all", "pool", "gym", "massage"]).default("all"),
+  serviceSlugs: z.string().optional(),
+  ctaLabel: z.string().optional(),
+  ctaUrl: z.string().optional(),
+  startsAt: z.string().optional(),
+  endsAt: z.string().optional(),
+  isPublished: z.coerce.boolean().default(false)
+});
+
+adminRouter.post("/posts", imageUpload.single("image"), async (req, res, next) => {
+  try {
+    const body = postSchema.parse(req.body);
+    const imageBytes = req.file ? new Uint8Array(req.file.buffer) : undefined;
+    const post = await prisma.contentPost.create({
+      data: {
+        projectKey: env.projectKey,
+        type: body.type,
+        languageCode: body.languageCode,
+        title: body.title,
+        body: body.body,
+        direction: body.direction === "all" ? undefined : body.direction,
+        serviceSlugs: body.serviceSlugs ? body.serviceSlugs.split(",").map((item) => item.trim()).filter(Boolean) : [],
+        ctaLabel: body.ctaLabel,
+        ctaUrl: body.ctaUrl,
+        startsAt: body.startsAt ? new Date(body.startsAt) : undefined,
+        endsAt: body.endsAt ? new Date(body.endsAt) : undefined,
+        isPublished: body.isPublished,
+        imageFileName: req.file?.originalname,
+        imageMimeType: req.file?.mimetype,
+        imageSize: req.file?.size,
+        imageData: imageBytes
+      }
+    });
+    res.status(201).json({ post: { ...post, imageData: undefined } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const postUpdateSchema = postSchema.partial();
+
+adminRouter.patch("/posts/:id", imageUpload.single("image"), async (req, res, next) => {
+  try {
+    const body = postUpdateSchema.parse(req.body);
+    const imageBytes = req.file ? new Uint8Array(req.file.buffer) : undefined;
+    const post = await prisma.contentPost.update({
+      where: { id: String(req.params.id) },
+      data: {
+        ...body,
+        direction: body.direction === "all" ? null : body.direction,
+        serviceSlugs: body.serviceSlugs ? body.serviceSlugs.split(",").map((item) => item.trim()).filter(Boolean) : undefined,
+        startsAt: body.startsAt ? new Date(body.startsAt) : undefined,
+        endsAt: body.endsAt ? new Date(body.endsAt) : undefined,
+        imageFileName: req.file?.originalname,
+        imageMimeType: req.file?.mimetype,
+        imageSize: req.file?.size,
+        imageData: imageBytes
+      }
+    });
+    res.json({ post: { ...post, imageData: undefined } });
   } catch (error) {
     next(error);
   }

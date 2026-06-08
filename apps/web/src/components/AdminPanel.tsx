@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { apiJson, receiptFileUrl } from "../lib/api";
+import { apiForm, apiJson, coachPhotoUrl, contentPostImageUrl, receiptFileUrl } from "../lib/api";
 import { copy, type Lang } from "../data/i18n";
 
 type ClientSummary = {
@@ -16,7 +16,7 @@ type ClientSummary = {
 };
 
 type Overview = {
-  stats: { clients: number; leads: number; receipts: number; reminders: number; broadcasts: number; enrollments: number; lessons: number };
+  stats: { clients: number; leads: number; receipts: number; reminders: number; broadcasts: number; enrollments: number; lessons: number; coaches: number; posts: number };
   recentClients: ClientSummary[];
   recentLeads: Array<{
     id: string;
@@ -50,6 +50,29 @@ type Overview = {
     status: string;
     client: { telegramId: string; username?: string; firstName?: string };
     enrollment?: { id: string; title: string };
+  }>;
+  recentCoaches: Array<{
+    id: string;
+    name: string;
+    direction: string;
+    branch?: string;
+    serviceSlugs: string[];
+    bio?: string;
+    experience?: string;
+    isActive: boolean;
+    hasPhoto: boolean;
+  }>;
+  recentPosts: Array<{
+    id: string;
+    type: string;
+    languageCode: string;
+    title: string;
+    body: string;
+    direction?: string;
+    serviceSlugs: string[];
+    isPublished: boolean;
+    hasImage: boolean;
+    createdAt: string;
   }>;
 };
 
@@ -136,6 +159,26 @@ export function AdminPanel({ lang }: { lang: Lang }) {
     await load();
   }
 
+  async function createCoach(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy("coach");
+    await apiForm("/api/admin/coaches", form);
+    event.currentTarget.reset();
+    setBusy("");
+    await load();
+  }
+
+  async function createPost(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy("post");
+    await apiForm("/api/admin/posts", form);
+    event.currentTarget.reset();
+    setBusy("");
+    await load();
+  }
+
   async function createReminder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -195,6 +238,8 @@ export function AdminPanel({ lang }: { lang: Lang }) {
           <span>{t.receipts}: {data.stats.receipts}</span>
           <span>Subscriptions: {data.stats.enrollments}</span>
           <span>Lessons: {data.stats.lessons}</span>
+          <span>Coaches: {data.stats.coaches}</span>
+          <span>Posts: {data.stats.posts}</span>
           <span>Reminders: {data.stats.reminders}</span>
         </div>
       </section>
@@ -210,6 +255,84 @@ export function AdminPanel({ lang }: { lang: Lang }) {
                 <small>Language {client.languageCode} - leads {client.leads.length} - last seen {new Date(client.lastSeenAt).toLocaleString()}</small>
                 {client.leads[0] && <p>Last request: {client.leads[0].childName}, {client.leads[0].childAge} - {client.leads[0].status}</p>}
                 {client.enrollments[0] && <p>Subscription: {client.enrollments[0].title} - {client.enrollments[0].usedLessons}/{client.enrollments[0].totalLessons}</p>}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel">
+        <h2>Content: coaches</h2>
+        <form className="form" onSubmit={(event) => void createCoach(event)}>
+          <input name="name" placeholder="Coach name" required />
+          <select name="direction" defaultValue="pool">
+            <option value="pool">Pool</option>
+            <option value="gym">Gym</option>
+            <option value="massage">Massage</option>
+          </select>
+          <input name="branch" placeholder="Branch" />
+          <input name="serviceSlugs" placeholder="Service slugs: baby-swim,kids-swim" />
+          <input name="experience" placeholder="Experience, e.g. 5 years" />
+          <textarea name="bio" placeholder="Coach description" rows={3} />
+          <select name="isActive" defaultValue="true">
+            <option value="true">Visible</option>
+            <option value="false">Hidden</option>
+          </select>
+          <input accept="image/*" name="photo" type="file" />
+          <button className="wide-action" disabled={busy === "coach"} type="submit">Add coach</button>
+        </form>
+        <div className="admin-list">
+          {data.recentCoaches.map((coach) => (
+            <article className="admin-item" key={coach.id}>
+              <div>
+                <strong>{coach.name}</strong>
+                <p>{coach.direction} - {coach.branch || "all branches"} - {coach.isActive ? "visible" : "hidden"}</p>
+                <small>{coach.serviceSlugs.join(", ") || "all services"}</small>
+                {coach.hasPhoto && <a href={coachPhotoUrl(coach.id)} target="_blank" rel="noreferrer">Open photo</a>}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel">
+        <h2>Content: news and promos</h2>
+        <form className="form" onSubmit={(event) => void createPost(event)}>
+          <select name="type" defaultValue="news">
+            <option value="news">News</option>
+            <option value="promo">Promo</option>
+          </select>
+          <select name="languageCode" defaultValue="ru">
+            <option value="ru">RU</option>
+            <option value="ka">GE</option>
+            <option value="en">EN</option>
+          </select>
+          <input name="title" placeholder="Title" required />
+          <textarea name="body" placeholder="Text" required rows={4} />
+          <select name="direction" defaultValue="all">
+            <option value="all">All directions</option>
+            <option value="pool">Pool</option>
+            <option value="gym">Gym</option>
+            <option value="massage">Massage</option>
+          </select>
+          <input name="serviceSlugs" placeholder="Service slugs, optional" />
+          <input name="ctaLabel" placeholder="Button label, optional" />
+          <input name="ctaUrl" placeholder="Button URL, optional" />
+          <select name="isPublished" defaultValue="true">
+            <option value="true">Published</option>
+            <option value="false">Draft</option>
+          </select>
+          <input accept="image/*" name="image" type="file" />
+          <button className="wide-action" disabled={busy === "post"} type="submit">Add publication</button>
+        </form>
+        <div className="admin-list">
+          {data.recentPosts.map((post) => (
+            <article className="admin-item" key={post.id}>
+              <div>
+                <strong>{post.title}</strong>
+                <p>{post.type} - {post.languageCode} - {post.direction || "all"} - {post.isPublished ? "published" : "draft"}</p>
+                <small>{post.body.slice(0, 120)}</small>
+                {post.hasImage && <a href={contentPostImageUrl(post.id)} target="_blank" rel="noreferrer">Open image</a>}
               </div>
             </article>
           ))}

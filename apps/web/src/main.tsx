@@ -1,15 +1,15 @@
 import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ArrowLeft, CalendarCheck, ClipboardList, MapPin, ReceiptText } from "lucide-react";
+import { ArrowLeft, CalendarCheck, ClipboardList, MapPin, Newspaper, ReceiptText } from "lucide-react";
 import { AdminPanel } from "./components/AdminPanel";
 import { LanguageSwitch } from "./components/LanguageSwitch";
 import { ServiceCard } from "./components/ServiceCard";
-import { apiForm, apiJson } from "./lib/api";
+import { apiForm, apiJson, coachPhotoUrl, contentPostImageUrl } from "./lib/api";
 import { getDevTelegramId, getInitData, openFullscreen } from "./lib/telegram";
 import { copy, services, type Direction, type Lang } from "./data/i18n";
 import "./styles.css";
 
-type Page = "home" | "direction" | "service" | "book" | "cabinet" | "prices" | "contacts" | "receipt";
+type Page = "home" | "direction" | "service" | "book" | "cabinet" | "prices" | "news" | "contacts" | "receipt";
 type Notice = { kind: "success" | "error"; message: string };
 type Dashboard = {
   hasCabinet: boolean;
@@ -37,6 +37,43 @@ type Dashboard = {
     lessons: Array<{ id: string; title: string; startsAt: string; status: string; branch?: string }>;
   }>;
   upcomingLessons: Array<{ id: string; title: string; startsAt: string; status: string; branch?: string }>;
+};
+
+type ContentFeed = {
+  posts: Array<{
+    id: string;
+    type: "news" | "promo";
+    title: string;
+    body: string;
+    direction?: Direction | null;
+    serviceSlugs: string[];
+    ctaLabel?: string | null;
+    ctaUrl?: string | null;
+    createdAt: string;
+    hasImage: boolean;
+  }>;
+  coaches: Array<{
+    id: string;
+    name: string;
+    direction: Direction;
+    branch?: string | null;
+    serviceSlugs: string[];
+    bio?: string | null;
+    experience?: string | null;
+    hasPhoto: boolean;
+  }>;
+};
+
+const contentCopy: Record<Lang, {
+  page: string;
+  news: string;
+  promo: string;
+  coaches: string;
+  empty: string;
+}> = {
+  ru: { page: "Новости", news: "Новости", promo: "Акции", coaches: "Тренеры", empty: "Пока нет опубликованных материалов." },
+  ka: { page: "სიახლეები", news: "სიახლეები", promo: "აქციები", coaches: "ტრენერები", empty: "გამოქვეყნებული მასალები ჯერ არ არის." },
+  en: { page: "News", news: "News", promo: "Promos", coaches: "Coaches", empty: "No published materials yet." }
 };
 
 const actionCopy: Record<Lang, {
@@ -117,6 +154,7 @@ function App() {
   const [serviceSlug, setServiceSlug] = useState("baby-swim");
   const [notice, setNotice] = useState<Notice | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [content, setContent] = useState<ContentFeed | null>(null);
   const t = copy[lang];
 
   const activeService = useMemo(
@@ -145,6 +183,12 @@ function App() {
     const timeout = window.setTimeout(() => setNotice(null), 5200);
     return () => window.clearTimeout(timeout);
   }, [notice]);
+
+  useEffect(() => {
+    void apiJson<ContentFeed>(`/api/content?lang=${lang}`)
+      .then(setContent)
+      .catch(() => setContent({ posts: [], coaches: [] }));
+  }, [lang]);
 
   if (window.location.pathname === "/admin") {
     return (
@@ -248,6 +292,7 @@ function App() {
         {page === "book" && <BookingForm lang={lang} serviceSlug={serviceSlug} direction={direction} onDone={setNotice} onSaved={() => void refreshDashboard()} />}
         {page === "cabinet" && <ClientCabinet dashboard={dashboard} lang={lang} onAdd={() => setPage("book")} onReceipt={() => setPage("receipt")} />}
         {page === "prices" && <Prices lang={lang} onBack={() => setPage("home")} />}
+        {page === "news" && <NewsPage content={content} lang={lang} onBook={() => setPage("book")} />}
         {page === "contacts" && <Contacts lang={lang} onBack={() => setPage("home")} />}
         {page === "receipt" && <ReceiptUpload lang={lang} onDone={setNotice} />}
 
@@ -257,6 +302,7 @@ function App() {
         <button className={page === "home" ? "active" : ""} onClick={() => setPage("home")} type="button">MBPG</button>
         <button className={page === "prices" ? "active" : ""} onClick={() => setPage("prices")} type="button">{t.prices}</button>
         <button className={page === "book" || page === "cabinet" ? "active" : ""} onClick={openCabinetOrBooking} type="button">{dashboard?.hasCabinet ? actionCopy[lang].cabinet : t.book}</button>
+        <button className={page === "news" ? "active" : ""} onClick={() => setPage("news")} type="button">{contentCopy[lang].page}</button>
         <button className={page === "contacts" ? "active" : ""} onClick={() => setPage("contacts")} type="button">{t.contacts}</button>
       </nav>
     </>
@@ -274,6 +320,67 @@ function Header({ lang, setLang }: { lang: Lang; setLang: (lang: Lang) => void }
 
 function BackButton({ onClick, label }: { onClick: () => void; label: string }) {
   return <button className="back" onClick={onClick} type="button"><ArrowLeft size={17} />{label}</button>;
+}
+
+function NewsPage({ content, lang, onBook }: { content: ContentFeed | null; lang: Lang; onBook: () => void }) {
+  const text = contentCopy[lang];
+  const [tab, setTab] = useState<"news" | "promo" | "coaches">("news");
+  const posts = content?.posts.filter((post) => post.type === tab) ?? [];
+  const coaches = content?.coaches ?? [];
+
+  return (
+    <>
+      <section className="panel">
+        <h2>{text.page}</h2>
+        <div className="tabs">
+          <button className={tab === "news" ? "active" : ""} onClick={() => setTab("news")} type="button"><Newspaper size={16} />{text.news}</button>
+          <button className={tab === "promo" ? "active" : ""} onClick={() => setTab("promo")} type="button">{text.promo}</button>
+          <button className={tab === "coaches" ? "active" : ""} onClick={() => setTab("coaches")} type="button">{text.coaches}</button>
+        </div>
+      </section>
+
+      {tab !== "coaches" && (
+        <section className="panel">
+          <div className="content-list">
+            {posts.length === 0 && <p className="muted">{text.empty}</p>}
+            {posts.map((post) => (
+              <article className="content-card" key={post.id}>
+                {post.hasImage && <img alt="" src={contentPostImageUrl(post.id)} />}
+                <div>
+                  <span className="status-pill">{post.direction || "all"}</span>
+                  <h3>{post.title}</h3>
+                  <p>{post.body}</p>
+                  <small>{new Date(post.createdAt).toLocaleDateString()}</small>
+                  {post.ctaUrl && post.ctaLabel && <a href={post.ctaUrl}>{post.ctaLabel}</a>}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tab === "coaches" && (
+        <section className="panel">
+          <div className="content-list">
+            {coaches.length === 0 && <p className="muted">{text.empty}</p>}
+            {coaches.map((coach) => (
+              <article className="content-card coach-card" key={coach.id}>
+                {coach.hasPhoto ? <img alt="" src={coachPhotoUrl(coach.id)} /> : <div className="photo-placeholder">{coach.name.slice(0, 1)}</div>}
+                <div>
+                  <span className="status-pill">{coach.direction}</span>
+                  <h3>{coach.name}</h3>
+                  {coach.experience && <strong>{coach.experience}</strong>}
+                  {coach.bio && <p>{coach.bio}</p>}
+                  <small>{coach.branch || ""}{coach.serviceSlugs.length ? ` - ${coach.serviceSlugs.map((slug) => serviceTitle(slug, lang)).join(", ")}` : ""}</small>
+                  <button className="mini-button" onClick={onBook} type="button">{copy[lang].book}</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
 }
 
 function BookingForm({ lang, direction, serviceSlug, onDone, onSaved }: { lang: Lang; direction: Direction; serviceSlug: string; onDone: (notice: Notice) => void; onSaved: () => void }) {

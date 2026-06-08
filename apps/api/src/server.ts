@@ -9,6 +9,7 @@ import { clientsRouter } from "./routes/clients.js";
 import { leadsRouter } from "./routes/leads.js";
 import { receiptsRouter } from "./routes/receipts.js";
 import { adminRouter } from "./routes/admin.js";
+import { contentRouter } from "./routes/content.js";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +25,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/clients", clientsRouter);
 app.use("/api/leads", leadsRouter);
 app.use("/api/receipts", receiptsRouter);
+app.use("/api/content", contentRouter);
 app.use("/api/admin", adminRouter);
 
 attachBot(app);

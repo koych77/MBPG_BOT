@@ -37,3 +37,11 @@ export async function apiForm<T>(path: string, body: FormData) {
 export function receiptFileUrl(id: string) {
   return `${API_BASE}/api/receipts/${id}/file`;
 }
+
+export function contentPostImageUrl(id: string) {
+  return `${API_BASE}/api/content/posts/${id}/image`;
+}
+
+export function coachPhotoUrl(id: string) {
+  return `${API_BASE}/api/content/coaches/${id}/photo`;
+}
