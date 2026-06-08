@@ -1,6 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { apiForm, apiJson, coachPhotoUrl, contentPostImageUrl, receiptFileUrl } from "../lib/api";
 import { copy, type Lang } from "../data/i18n";
+
+type AdminTab = "work" | "clients" | "payments" | "content" | "messages" | "log";
 
 type ClientSummary = {
   id: string;
@@ -15,77 +17,30 @@ type ClientSummary = {
   enrollments: Array<{ id: string; title: string; totalLessons: number; usedLessons: number; status: string }>;
 };
 
+type LeadSummary = {
+  id: string;
+  parentName: string;
+  phone: string;
+  childName: string;
+  childAge: string;
+  direction: string;
+  branch: string;
+  status: string;
+  client: { telegramId: string; username?: string };
+};
+
 type Overview = {
   stats: { clients: number; leads: number; receipts: number; reminders: number; broadcasts: number; enrollments: number; lessons: number; coaches: number; posts: number; notifications: number };
   recentClients: ClientSummary[];
-  recentLeads: Array<{
-    id: string;
-    parentName: string;
-    phone: string;
-    childName: string;
-    childAge: string;
-    direction: string;
-    branch: string;
-    status: string;
-    client: { telegramId: string; username?: string };
-  }>;
+  recentLeads: LeadSummary[];
   recentReceipts: Array<{ id: string; fileName: string; mimeType: string; status: string; client: { telegramId: string; username?: string } }>;
   recentReminders: Array<{ id: string; type: string; message: string; dueAt: string; status: string; client: { telegramId: string; username?: string } }>;
   recentBroadcasts: Array<{ id: string; title: string; sentCount: number; failedCount: number; sentAt?: string; createdAt: string }>;
-  recentEnrollments: Array<{
-    id: string;
-    title: string;
-    branch?: string;
-    totalLessons: number;
-    usedLessons: number;
-    remainingLessons: number;
-    status: string;
-    client: { id: string; telegramId: string; username?: string; firstName?: string };
-  }>;
-  recentLessons: Array<{
-    id: string;
-    title: string;
-    branch?: string;
-    startsAt: string;
-    status: string;
-    client: { telegramId: string; username?: string; firstName?: string };
-    enrollment?: { id: string; title: string };
-  }>;
-  recentCoaches: Array<{
-    id: string;
-    name: string;
-    direction: string;
-    branch?: string;
-    serviceSlugs: string[];
-    bio?: string;
-    experience?: string;
-    isActive: boolean;
-    hasPhoto: boolean;
-  }>;
-  recentPosts: Array<{
-    id: string;
-    type: string;
-    languageCode: string;
-    title: string;
-    body: string;
-    direction?: string;
-    serviceSlugs: string[];
-    isPublished: boolean;
-    hasImage: boolean;
-    createdAt: string;
-  }>;
-  recentNotifications: Array<{
-    id: string;
-    audience: string;
-    type: string;
-    title?: string;
-    message: string;
-    status: string;
-    error?: string;
-    telegramId?: string;
-    createdAt: string;
-    client?: { telegramId: string; username?: string; firstName?: string } | null;
-  }>;
+  recentEnrollments: Array<{ id: string; title: string; branch?: string; totalLessons: number; usedLessons: number; remainingLessons: number; status: string; client: { id: string; telegramId: string; username?: string; firstName?: string } }>;
+  recentLessons: Array<{ id: string; title: string; branch?: string; startsAt: string; status: string; client: { telegramId: string; username?: string; firstName?: string }; enrollment?: { id: string; title: string } }>;
+  recentCoaches: Array<{ id: string; name: string; direction: string; branch?: string; serviceSlugs: string[]; bio?: string; experience?: string; isActive: boolean; hasPhoto: boolean }>;
+  recentPosts: Array<{ id: string; type: string; languageCode: string; title: string; body: string; direction?: string; serviceSlugs: string[]; isPublished: boolean; hasImage: boolean; createdAt: string }>;
+  recentNotifications: Array<{ id: string; audience: string; type: string; title?: string; message: string; status: string; error?: string; telegramId?: string; createdAt: string; client?: { telegramId: string; username?: string; firstName?: string } | null }>;
 };
 
 export function AdminPanel({ lang }: { lang: Lang }) {
@@ -93,6 +48,8 @@ export function AdminPanel({ lang }: { lang: Lang }) {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  const [tab, setTab] = useState<AdminTab>("work");
+  const [query, setQuery] = useState("");
 
   async function load() {
     try {
@@ -120,14 +77,6 @@ export function AdminPanel({ lang }: { lang: Lang }) {
 
   async function updateLesson(id: string, status: string) {
     await apiJson(`/api/admin/lessons/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
-    await load();
-  }
-
-  async function updateEnrollment(id: string, status: string, usedLessons: number, totalLessons: number) {
-    await apiJson(`/api/admin/enrollments/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ status, usedLessons, totalLessons })
-    });
     await load();
   }
 
@@ -173,9 +122,8 @@ export function AdminPanel({ lang }: { lang: Lang }) {
 
   async function createCoach(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
     setBusy("coach");
-    await apiForm("/api/admin/coaches", form);
+    await apiForm("/api/admin/coaches", new FormData(event.currentTarget));
     event.currentTarget.reset();
     setBusy("");
     await load();
@@ -183,9 +131,8 @@ export function AdminPanel({ lang }: { lang: Lang }) {
 
   async function createPost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
     setBusy("post");
-    await apiForm("/api/admin/posts", form);
+    await apiForm("/api/admin/posts", new FormData(event.currentTarget));
     event.currentTarget.reset();
     setBusy("");
     await load();
@@ -227,6 +174,20 @@ export function AdminPanel({ lang }: { lang: Lang }) {
     await load();
   }
 
+  const todayLessons = useMemo(() => {
+    if (!data) return [];
+    const today = new Date().toDateString();
+    return data.recentLessons.filter((lesson) => new Date(lesson.startsAt).toDateString() === today && lesson.status === "SCHEDULED");
+  }, [data]);
+
+  const newLeads = data?.recentLeads.filter((lead) => lead.status === "NEW") ?? [];
+  const newReceipts = data?.recentReceipts.filter((receipt) => receipt.status === "NEW") ?? [];
+  const lowEnrollments = data?.recentEnrollments.filter((enrollment) => enrollment.status === "ACTIVE" && enrollment.remainingLessons <= 2) ?? [];
+  const filteredClients = data?.recentClients.filter((client) => {
+    const text = [client.telegramId, client.username, client.firstName, client.lastName, client.phone].filter(Boolean).join(" ").toLowerCase();
+    return text.includes(query.toLowerCase());
+  }) ?? [];
+
   if (error) {
     return (
       <main className="screen">
@@ -245,295 +206,269 @@ export function AdminPanel({ lang }: { lang: Lang }) {
       <section className="hero compact">
         <h1>{t.admin}</h1>
         <div className="stats">
-          <span>{t.clients}: {data.stats.clients}</span>
-          <span>{t.leads}: {data.stats.leads}</span>
-          <span>{t.receipts}: {data.stats.receipts}</span>
-          <span>Subscriptions: {data.stats.enrollments}</span>
-          <span>Lessons: {data.stats.lessons}</span>
-          <span>Coaches: {data.stats.coaches}</span>
-          <span>Posts: {data.stats.posts}</span>
-          <span>Notifications: {data.stats.notifications}</span>
-          <span>Reminders: {data.stats.reminders}</span>
+          <button type="button" onClick={() => setTab("work")}>Today {todayLessons.length}</button>
+          <button type="button" onClick={() => setTab("work")}>New leads {newLeads.length}</button>
+          <button type="button" onClick={() => setTab("payments")}>Receipts {newReceipts.length}</button>
+          <button type="button" onClick={() => setTab("clients")}>Clients {data.stats.clients}</button>
+          <button type="button" onClick={() => setTab("log")}>Alerts {data.stats.notifications}</button>
         </div>
       </section>
 
-      <section className="panel">
-        <h2>CRM</h2>
-        <div className="admin-list">
-          {data.recentClients.map((client) => (
-            <article className="admin-item crm-item" key={client.id}>
-              <div>
-                <strong>{client.firstName || client.username || "Telegram client"}</strong>
-                <p>TG {client.telegramId}{client.username ? ` - @${client.username}` : ""}{client.phone ? ` - ${client.phone}` : ""}</p>
-                <small>Language {client.languageCode} - leads {client.leads.length} - last seen {new Date(client.lastSeenAt).toLocaleString()}</small>
-                {client.leads[0] && <p>Last request: {client.leads[0].childName}, {client.leads[0].childAge} - {client.leads[0].status}</p>}
-                {client.enrollments[0] && <p>Subscription: {client.enrollments[0].title} - {client.enrollments[0].usedLessons}/{client.enrollments[0].totalLessons}</p>}
-              </div>
-            </article>
-          ))}
-        </div>
+      <section className="panel admin-tabs">
+        {[
+          ["work", "Работа"],
+          ["clients", "Клиенты"],
+          ["payments", "Оплаты"],
+          ["content", "Контент"],
+          ["messages", "Рассылки"],
+          ["log", "Журнал"]
+        ].map(([id, label]) => (
+          <button className={tab === id ? "active" : ""} key={id} onClick={() => setTab(id as AdminTab)} type="button">{label}</button>
+        ))}
       </section>
 
-      <section className="panel">
-        <h2>Content: coaches</h2>
-        <form className="form" onSubmit={(event) => void createCoach(event)}>
-          <input name="name" placeholder="Coach name" required />
-          <select name="direction" defaultValue="pool">
-            <option value="pool">Pool</option>
-            <option value="gym">Gym</option>
-            <option value="massage">Massage</option>
-          </select>
-          <input name="branch" placeholder="Branch" />
-          <input name="serviceSlugs" placeholder="Service slugs: baby-swim,kids-swim" />
-          <input name="experience" placeholder="Experience, e.g. 5 years" />
-          <textarea name="bio" placeholder="Coach description" rows={3} />
-          <select name="isActive" defaultValue="true">
-            <option value="true">Visible</option>
-            <option value="false">Hidden</option>
-          </select>
-          <input accept="image/*" name="photo" type="file" />
-          <button className="wide-action" disabled={busy === "coach"} type="submit">Add coach</button>
-        </form>
-        <div className="admin-list">
-          {data.recentCoaches.map((coach) => (
-            <article className="admin-item" key={coach.id}>
-              <div>
-                <strong>{coach.name}</strong>
-                <p>{coach.direction} - {coach.branch || "all branches"} - {coach.isActive ? "visible" : "hidden"}</p>
-                <small>{coach.serviceSlugs.join(", ") || "all services"}</small>
-                {coach.hasPhoto && <a href={coachPhotoUrl(coach.id)} target="_blank" rel="noreferrer">Open photo</a>}
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+      {tab === "work" && (
+        <>
+          <TaskSection title="Сегодня" empty="На сегодня нет запланированных занятий.">
+            {todayLessons.map((lesson) => (
+              <article className="admin-item" key={lesson.id}>
+                <div>
+                  <strong>{new Date(lesson.startsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - {lesson.title}</strong>
+                  <p>TG {lesson.client.telegramId} - {lesson.branch || "branch not set"}</p>
+                  <small>{lesson.enrollment?.title || "without subscription"}</small>
+                </div>
+                <div className="quick-actions">
+                  <button onClick={() => void updateLesson(lesson.id, "ATTENDED")} type="button">Пришел</button>
+                  <button onClick={() => void updateLesson(lesson.id, "MISSED")} type="button">Не пришел</button>
+                  <button onClick={() => void updateLesson(lesson.id, "CANCELED")} type="button">Отмена</button>
+                </div>
+              </article>
+            ))}
+          </TaskSection>
 
-      <section className="panel">
-        <h2>Content: news and promos</h2>
-        <form className="form" onSubmit={(event) => void createPost(event)}>
-          <select name="type" defaultValue="news">
-            <option value="news">News</option>
-            <option value="promo">Promo</option>
-          </select>
-          <select name="languageCode" defaultValue="ru">
-            <option value="ru">RU</option>
-            <option value="ka">GE</option>
-            <option value="en">EN</option>
-          </select>
-          <input name="title" placeholder="Title" required />
-          <textarea name="body" placeholder="Text" required rows={4} />
-          <select name="direction" defaultValue="all">
-            <option value="all">All directions</option>
-            <option value="pool">Pool</option>
-            <option value="gym">Gym</option>
-            <option value="massage">Massage</option>
-          </select>
-          <input name="serviceSlugs" placeholder="Service slugs, optional" />
-          <input name="ctaLabel" placeholder="Button label, optional" />
-          <input name="ctaUrl" placeholder="Button URL, optional" />
-          <select name="isPublished" defaultValue="true">
-            <option value="true">Published</option>
-            <option value="false">Draft</option>
-          </select>
-          <input accept="image/*" name="image" type="file" />
-          <button className="wide-action" disabled={busy === "post"} type="submit">Add publication</button>
-        </form>
-        <div className="admin-list">
-          {data.recentPosts.map((post) => (
-            <article className="admin-item" key={post.id}>
-              <div>
-                <strong>{post.title}</strong>
-                <p>{post.type} - {post.languageCode} - {post.direction || "all"} - {post.isPublished ? "published" : "draft"}</p>
-                <small>{post.body.slice(0, 120)}</small>
-                {post.hasImage && <a href={contentPostImageUrl(post.id)} target="_blank" rel="noreferrer">Open image</a>}
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+          <TaskSection title="Новые заявки" empty="Новых заявок нет.">
+            {newLeads.map((lead) => (
+              <article className="admin-item" key={lead.id}>
+                <div>
+                  <strong>{lead.parentName}</strong>
+                  <p>{lead.phone} - {lead.childName}, {lead.childAge}</p>
+                  <small>{lead.direction} - {lead.branch} - TG {lead.client.telegramId}</small>
+                </div>
+                <div className="quick-actions">
+                  <button onClick={() => void updateLead(lead.id, "CONTACTED")} type="button">Связались</button>
+                  <button onClick={() => void updateLead(lead.id, "BOOKED")} type="button">Подтвердить</button>
+                </div>
+              </article>
+            ))}
+          </TaskSection>
 
-      <section className="panel">
-        <h2>Notification log</h2>
-        <div className="admin-list">
-          {data.recentNotifications.map((notification) => (
-            <article className="admin-item" key={notification.id}>
-              <div>
-                <strong>{notification.type} - {notification.status}</strong>
-                <p>{notification.message}</p>
-                <small>
-                  {notification.audience} - TG {notification.telegramId || notification.client?.telegramId || "-"} - {new Date(notification.createdAt).toLocaleString()}
-                  {notification.error ? ` - ${notification.error}` : ""}
-                </small>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+          <TaskSection title="Абонементы требуют внимания" empty="Критичных абонементов нет.">
+            {lowEnrollments.map((enrollment) => (
+              <article className="admin-item" key={enrollment.id}>
+                <div>
+                  <strong>{enrollment.title}</strong>
+                  <p>TG {enrollment.client.telegramId} - осталось {enrollment.remainingLessons}</p>
+                  <small>{enrollment.branch || ""}</small>
+                </div>
+              </article>
+            ))}
+          </TaskSection>
 
-      <section className="panel">
-        <h2>Create subscription</h2>
+          <QuickForms data={data} busy={busy} createEnrollment={createEnrollment} createLesson={createLesson} />
+        </>
+      )}
+
+      {tab === "clients" && (
+        <section className="panel">
+          <h2>Клиенты</h2>
+          <input className="search-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по имени, телефону, Telegram ID" />
+          <div className="admin-list">
+            {filteredClients.map((client) => (
+              <article className="admin-item crm-item" key={client.id}>
+                <div>
+                  <strong>{client.firstName || client.username || "Telegram client"}</strong>
+                  <p>TG {client.telegramId}{client.username ? ` - @${client.username}` : ""}{client.phone ? ` - ${client.phone}` : ""}</p>
+                  <small>Language {client.languageCode} - last seen {new Date(client.lastSeenAt).toLocaleString()}</small>
+                  {client.leads[0] && <p>Last request: {client.leads[0].childName}, {client.leads[0].childAge} - {client.leads[0].status}</p>}
+                  {client.enrollments[0] && <p>Subscription: {client.enrollments[0].title} - {client.enrollments[0].usedLessons}/{client.enrollments[0].totalLessons}</p>}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tab === "payments" && (
+        <section className="panel">
+          <h2>Оплаты</h2>
+          <div className="admin-list">
+            {data.recentReceipts.map((receipt) => (
+              <article className="admin-item" key={receipt.id}>
+                <div>
+                  <strong>{receipt.fileName}</strong>
+                  <p>{receipt.mimeType} - TG {receipt.client.telegramId}</p>
+                  <a href={receiptFileUrl(receipt.id)} target="_blank" rel="noreferrer">Открыть чек</a>
+                </div>
+                <div className="quick-actions">
+                  <button onClick={() => void updateReceipt(receipt.id, "APPROVED")} type="button">Принять</button>
+                  <button onClick={() => void updateReceipt(receipt.id, "REJECTED")} type="button">Отклонить</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tab === "content" && (
+        <>
+          <section className="panel">
+            <h2>Тренеры</h2>
+            <form className="form" onSubmit={(event) => void createCoach(event)}>
+              <input name="name" placeholder="Coach name" required />
+              <select name="direction" defaultValue="pool"><option value="pool">Pool</option><option value="gym">Gym</option><option value="massage">Massage</option></select>
+              <input name="branch" placeholder="Branch" />
+              <input name="serviceSlugs" placeholder="Service slugs: baby-swim,kids-swim" />
+              <input name="experience" placeholder="Experience" />
+              <textarea name="bio" placeholder="Coach description" rows={3} />
+              <select name="isActive" defaultValue="true"><option value="true">Visible</option><option value="false">Hidden</option></select>
+              <input accept="image/*" name="photo" type="file" />
+              <button className="wide-action" disabled={busy === "coach"} type="submit">Add coach</button>
+            </form>
+            <ContentList items={data.recentCoaches.map((coach) => ({ id: coach.id, title: coach.name, meta: `${coach.direction} - ${coach.isActive ? "visible" : "hidden"}`, link: coach.hasPhoto ? coachPhotoUrl(coach.id) : undefined }))} />
+          </section>
+
+          <section className="panel">
+            <h2>Новости и акции</h2>
+            <form className="form" onSubmit={(event) => void createPost(event)}>
+              <select name="type" defaultValue="news"><option value="news">News</option><option value="promo">Promo</option></select>
+              <select name="languageCode" defaultValue="ru"><option value="ru">RU</option><option value="ka">GE</option><option value="en">EN</option></select>
+              <input name="title" placeholder="Title" required />
+              <textarea name="body" placeholder="Text" required rows={4} />
+              <select name="direction" defaultValue="all"><option value="all">All directions</option><option value="pool">Pool</option><option value="gym">Gym</option><option value="massage">Massage</option></select>
+              <input name="serviceSlugs" placeholder="Service slugs, optional" />
+              <input name="ctaLabel" placeholder="Button label, optional" />
+              <input name="ctaUrl" placeholder="Button URL, optional" />
+              <select name="isPublished" defaultValue="true"><option value="true">Published</option><option value="false">Draft</option></select>
+              <input accept="image/*" name="image" type="file" />
+              <button className="wide-action" disabled={busy === "post"} type="submit">Add publication</button>
+            </form>
+            <ContentList items={data.recentPosts.map((post) => ({ id: post.id, title: post.title, meta: `${post.type} - ${post.languageCode} - ${post.isPublished ? "published" : "draft"}`, link: post.hasImage ? contentPostImageUrl(post.id) : undefined }))} />
+          </section>
+        </>
+      )}
+
+      {tab === "messages" && (
+        <>
+          <section className="panel">
+            <h2>Напоминание клиенту</h2>
+            <form className="form" onSubmit={(event) => void createReminder(event)}>
+              <ClientSelect clients={data.recentClients} />
+              <select name="type" defaultValue="custom"><option value="lesson">Lesson reminder</option><option value="payment">Payment reminder</option><option value="promo">Promo</option><option value="news">News</option><option value="custom">Custom</option></select>
+              <input name="dueAt" required type="datetime-local" />
+              <textarea name="message" placeholder="Message to client" required rows={3} />
+              <button className="wide-action" disabled={busy === "reminder"} type="submit">Create reminder</button>
+            </form>
+          </section>
+
+          <section className="panel">
+            <h2>Рассылка всем</h2>
+            <form className="form" onSubmit={(event) => void sendBroadcast(event)}>
+              <input name="title" placeholder="Campaign title" required />
+              <textarea name="message" placeholder="Message for all saved Telegram clients" required rows={4} />
+              <button className="wide-action" disabled={busy === "broadcast"} type="submit">Send to all clients</button>
+            </form>
+          </section>
+
+          <TaskSection title="Запланированные напоминания" empty="Нет запланированных напоминаний.">
+            {data.recentReminders.map((reminder) => (
+              <article className="admin-item" key={reminder.id}>
+                <div><strong>{reminder.type} - {reminder.status}</strong><p>{reminder.message}</p><small>TG {reminder.client.telegramId} - {new Date(reminder.dueAt).toLocaleString()}</small></div>
+                {reminder.status === "SCHEDULED" && <button className="mini-button" onClick={() => void cancelReminder(reminder.id)} type="button">Cancel</button>}
+              </article>
+            ))}
+          </TaskSection>
+
+          <TaskSection title="История рассылок" empty="Рассылок пока нет.">
+            {data.recentBroadcasts.map((broadcast) => (
+              <article className="admin-item" key={broadcast.id}>
+                <div><strong>{broadcast.title}</strong><p>Sent {broadcast.sentCount} - failed {broadcast.failedCount}</p><small>{new Date(broadcast.sentAt || broadcast.createdAt).toLocaleString()}</small></div>
+              </article>
+            ))}
+          </TaskSection>
+        </>
+      )}
+
+      {tab === "log" && (
+        <section className="panel">
+          <h2>Журнал уведомлений</h2>
+          <div className="admin-list">
+            {data.recentNotifications.map((notification) => (
+              <article className="admin-item crm-item" key={notification.id}>
+                <div>
+                  <strong>{notification.type} - {notification.status}</strong>
+                  <p>{notification.message}</p>
+                  <small>{notification.audience} - TG {notification.telegramId || notification.client?.telegramId || "-"} - {new Date(notification.createdAt).toLocaleString()}{notification.error ? ` - ${notification.error}` : ""}</small>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+    </main>
+  );
+}
+
+function TaskSection({ title, empty, children }: { title: string; empty: string; children: React.ReactNode }) {
+  const hasItems = Array.isArray(children) ? children.length > 0 : Boolean(children);
+  return (
+    <section className="panel">
+      <h2>{title}</h2>
+      <div className="admin-list">{hasItems ? children : <p className="muted">{empty}</p>}</div>
+    </section>
+  );
+}
+
+function QuickForms({ data, busy, createEnrollment, createLesson }: { data: Overview; busy: string; createEnrollment: (event: FormEvent<HTMLFormElement>) => void; createLesson: (event: FormEvent<HTMLFormElement>) => void }) {
+  return (
+    <section className="panel">
+      <h2>Быстрые действия</h2>
+      <details>
+        <summary>Создать абонемент</summary>
         <form className="form" onSubmit={(event) => void createEnrollment(event)}>
           <ClientSelect clients={data.recentClients} />
           <input name="title" placeholder="Subscription title" required />
-          <select name="direction" defaultValue="pool">
-            <option value="pool">Pool</option>
-            <option value="gym">Gym</option>
-            <option value="massage">Massage</option>
-          </select>
+          <select name="direction" defaultValue="pool"><option value="pool">Pool</option><option value="gym">Gym</option><option value="massage">Massage</option></select>
           <input name="branch" placeholder="Branch" />
           <input min="0" name="totalLessons" placeholder="Total lessons" required type="number" />
           <input min="0" name="usedLessons" placeholder="Used lessons" type="number" />
           <button className="wide-action" disabled={busy === "enrollment"} type="submit">Create subscription</button>
         </form>
-      </section>
-
-      <section className="panel">
-        <h2>Schedule lesson</h2>
+      </details>
+      <details>
+        <summary>Назначить занятие</summary>
         <form className="form" onSubmit={(event) => void createLesson(event)}>
           <ClientSelect clients={data.recentClients} />
-          <select name="enrollmentId">
-            <option value="">Without subscription</option>
-            {data.recentEnrollments.map((enrollment) => (
-              <option key={enrollment.id} value={enrollment.id}>{enrollment.title} - TG {enrollment.client.telegramId}</option>
-            ))}
-          </select>
+          <select name="enrollmentId"><option value="">Without subscription</option>{data.recentEnrollments.map((enrollment) => <option key={enrollment.id} value={enrollment.id}>{enrollment.title} - TG {enrollment.client.telegramId}</option>)}</select>
           <input name="title" placeholder="Lesson title" required />
           <input name="branch" placeholder="Branch" />
           <input name="startsAt" required type="datetime-local" />
           <textarea name="note" placeholder="Admin note" rows={2} />
           <button className="wide-action" disabled={busy === "lesson"} type="submit">Schedule lesson</button>
         </form>
-      </section>
+      </details>
+    </section>
+  );
+}
 
-      <section className="panel">
-        <h2>Subscriptions</h2>
-        <div className="admin-list">
-          {data.recentEnrollments.map((enrollment) => (
-            <article className="admin-item" key={enrollment.id}>
-              <div>
-                <strong>{enrollment.title}</strong>
-                <p>TG {enrollment.client.telegramId} - used {enrollment.usedLessons} - remaining {enrollment.remainingLessons}</p>
-                <small>{enrollment.branch || ""}</small>
-              </div>
-              <select value={enrollment.status} onChange={(event) => void updateEnrollment(enrollment.id, event.target.value, enrollment.usedLessons, enrollment.totalLessons)}>
-                {["ACTIVE", "PAUSED", "COMPLETED", "CANCELED"].map((status) => <option key={status}>{status}</option>)}
-              </select>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>Lessons</h2>
-        <div className="admin-list">
-          {data.recentLessons.map((lesson) => (
-            <article className="admin-item" key={lesson.id}>
-              <div>
-                <strong>{lesson.title}</strong>
-                <p>TG {lesson.client.telegramId} - {new Date(lesson.startsAt).toLocaleString()}</p>
-                <small>{lesson.branch || ""}{lesson.enrollment ? ` - ${lesson.enrollment.title}` : ""}</small>
-              </div>
-              <select value={lesson.status} onChange={(event) => void updateLesson(lesson.id, event.target.value)}>
-                {["SCHEDULED", "ATTENDED", "MISSED", "CANCELED"].map((status) => <option key={status}>{status}</option>)}
-              </select>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>{t.leads}</h2>
-        <div className="admin-list">
-          {data.recentLeads.map((lead) => (
-            <article className="admin-item" key={lead.id}>
-              <div>
-                <strong>{lead.parentName}</strong>
-                <p>{lead.phone} - {lead.childName}, {lead.childAge}</p>
-                <small>{lead.direction} - {lead.branch} - TG {lead.client.telegramId}</small>
-              </div>
-              <select value={lead.status} onChange={(event) => void updateLead(lead.id, event.target.value)}>
-                {["NEW", "CONTACTED", "BOOKED", "PAID", "LOST", "ARCHIVED"].map((status) => <option key={status}>{status}</option>)}
-              </select>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>{t.receipts}</h2>
-        <div className="admin-list">
-          {data.recentReceipts.map((receipt) => (
-            <article className="admin-item" key={receipt.id}>
-              <div>
-                <strong>{receipt.fileName}</strong>
-                <p>{receipt.mimeType} - TG {receipt.client.telegramId}</p>
-                <a href={receiptFileUrl(receipt.id)} target="_blank" rel="noreferrer">Open file</a>
-              </div>
-              <select value={receipt.status} onChange={(event) => void updateReceipt(receipt.id, event.target.value)}>
-                {["NEW", "APPROVED", "REJECTED"].map((status) => <option key={status}>{status}</option>)}
-              </select>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>Reminder</h2>
-        <form className="form" onSubmit={(event) => void createReminder(event)}>
-          <ClientSelect clients={data.recentClients} />
-          <select name="type" defaultValue="custom">
-            <option value="lesson">Lesson reminder</option>
-            <option value="payment">Payment reminder</option>
-            <option value="promo">Promo</option>
-            <option value="news">News</option>
-            <option value="custom">Custom</option>
-          </select>
-          <input name="dueAt" required type="datetime-local" />
-          <textarea name="message" placeholder="Message to client" required rows={3} />
-          <button className="wide-action" disabled={busy === "reminder"} type="submit">Create reminder</button>
-        </form>
-      </section>
-
-      <section className="panel">
-        <h2>Scheduled reminders</h2>
-        <div className="admin-list">
-          {data.recentReminders.map((reminder) => (
-            <article className="admin-item" key={reminder.id}>
-              <div>
-                <strong>{reminder.type} - {reminder.status}</strong>
-                <p>{reminder.message}</p>
-                <small>TG {reminder.client.telegramId} - {new Date(reminder.dueAt).toLocaleString()}</small>
-              </div>
-              {reminder.status === "SCHEDULED" && <button className="mini-button" onClick={() => void cancelReminder(reminder.id)} type="button">Cancel</button>}
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>Broadcast</h2>
-        <form className="form" onSubmit={(event) => void sendBroadcast(event)}>
-          <input name="title" placeholder="Campaign title" required />
-          <textarea name="message" placeholder="Message for all saved Telegram clients" required rows={4} />
-          <button className="wide-action" disabled={busy === "broadcast"} type="submit">Send to all clients</button>
-        </form>
-      </section>
-
-      <section className="panel">
-        <h2>Broadcast history</h2>
-        <div className="admin-list">
-          {data.recentBroadcasts.map((broadcast) => (
-            <article className="admin-item" key={broadcast.id}>
-              <div>
-                <strong>{broadcast.title}</strong>
-                <p>Sent {broadcast.sentCount} - failed {broadcast.failedCount}</p>
-                <small>{new Date(broadcast.sentAt || broadcast.createdAt).toLocaleString()}</small>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-    </main>
+function ContentList({ items }: { items: Array<{ id: string; title: string; meta: string; link?: string }> }) {
+  return (
+    <div className="admin-list">
+      {items.map((item) => (
+        <article className="admin-item crm-item" key={item.id}>
+          <div><strong>{item.title}</strong><p>{item.meta}</p>{item.link && <a href={item.link} target="_blank" rel="noreferrer">Open image</a>}</div>
+        </article>
+      ))}
+    </div>
   );
 }
 
@@ -541,11 +476,7 @@ function ClientSelect({ clients }: { clients: ClientSummary[] }) {
   return (
     <select name="clientId" required>
       <option value="">Select client</option>
-      {clients.map((client) => (
-        <option key={client.id} value={client.id}>
-          {client.firstName || client.username || client.telegramId} - TG {client.telegramId}
-        </option>
-      ))}
+      {clients.map((client) => <option key={client.id} value={client.id}>{client.firstName || client.username || client.telegramId} - TG {client.telegramId}</option>)}
     </select>
   );
 }

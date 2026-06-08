@@ -623,6 +623,87 @@ a {
   gap: 8px;
 }
 
+.stats button {
+  min-height: 44px;
+  padding: 10px;
+  color: var(--ink);
+  background: #eef9ff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.admin-tabs {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-tabs button {
+  min-height: 44px;
+  padding: 8px;
+  color: var(--muted);
+  background: #eef9ff;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.admin-tabs button.active {
+  color: var(--ink);
+  background: var(--yellow);
+}
+
+.quick-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.quick-actions button {
+  min-height: 38px;
+  padding: 8px 10px;
+  color: var(--ink);
+  background: #eef9ff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.quick-actions button:first-child {
+  background: var(--yellow);
+}
+
+.search-input {
+  width: 100%;
+  min-height: 46px;
+  margin-bottom: 12px;
+  padding: 11px 12px;
+  color: var(--ink);
+  background: #fbfdff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+details {
+  padding: 12px;
+  background: #fbfdff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+details + details {
+  margin-top: 10px;
+}
+
+summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+details .form {
+  margin-top: 12px;
+}
+
 .admin-list {
   display: grid;
   gap: 10px;
@@ -681,6 +762,7 @@ a {
   .direction-grid,
   .facts,
   .stats,
+  .admin-tabs,
   .admin-item {
     grid-template-columns: 1fr;
   }
