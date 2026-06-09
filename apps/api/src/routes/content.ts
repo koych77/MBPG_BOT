@@ -40,6 +40,18 @@ contentRouter.get("/", async (req, res, next) => {
   }
 });
 
+contentRouter.get("/prices", async (_req, res, next) => {
+  try {
+    const prices = await prisma.servicePrice.findMany({
+      where: { projectKey: env.projectKey, isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }]
+    });
+    res.json({ prices });
+  } catch (error) {
+    next(error);
+  }
+});
+
 contentRouter.get("/posts/:id/image", async (req, res, next) => {
   try {
     const post = await prisma.contentPost.findFirst({

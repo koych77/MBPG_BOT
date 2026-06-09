@@ -237,6 +237,8 @@ model Coach {
   serviceSlugs  String[] @default([])
   bio           String?
   experience    String?
+  interview     String?
+  videoUrl      String?
   isActive      Boolean  @default(true)
   photoFileName String?
   photoMimeType String?
@@ -247,6 +249,37 @@ model Coach {
 
   @@index([projectKey, direction])
   @@index([projectKey, isActive])
+}
+
+model ServicePrice {
+  id          String   @id @default(cuid())
+  projectKey  String   @default("mbpg")
+  slug        String
+  direction   String
+  branch      String?
+  titleRu     String
+  titleKa     String?
+  titleEn     String?
+  ageRu       String?
+  ageKa       String?
+  ageEn       String?
+  packageRu   String
+  packageKa   String?
+  packageEn   String?
+  priceRu     String
+  priceKa     String?
+  priceEn     String?
+  noteRu      String?
+  noteKa      String?
+  noteEn      String?
+  lessons     Int?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectKey, direction, isActive])
+  @@index([projectKey, sortOrder])
 }
 
 model ContentPost {

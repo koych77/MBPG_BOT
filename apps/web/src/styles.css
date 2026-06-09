@@ -9,7 +9,7 @@
   --blue-dark: #117bb8;
   --yellow: #ffd646;
   --ink: #123047;
-  --muted: #6b8294;
+  --muted: #36576d;
   --line: #d9ecf7;
   --surface: #ffffff;
   --shadow: 0 16px 40px rgba(35, 117, 166, 0.12);
@@ -66,9 +66,26 @@ a {
   backdrop-filter: blur(18px);
 }
 
+.brand-lockup {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
 .topbar strong {
   font-size: 20px;
   line-height: 1;
+}
+
+.brand-lockup span {
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .language-switch {
@@ -218,6 +235,29 @@ a {
   color: var(--muted);
 }
 
+.location-mark {
+  width: max-content;
+  padding: 5px 8px;
+  color: #06476b;
+  background: #dff6ff;
+  border: 1px solid #bfe9ff;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.location-mark.gym {
+  color: #5f4b00;
+  background: #fff4b8;
+  border-color: #ffe071;
+}
+
+.location-mark.massage {
+  color: #0f5c4c;
+  background: #e4fff7;
+  border-color: #b7f2df;
+}
+
 .service-list {
   display: grid;
   gap: 10px;
@@ -301,6 +341,44 @@ a {
 .price-block {
   padding: 14px 0;
   border-top: 1px solid var(--line);
+}
+
+.managed-price-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.managed-price-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  align-items: start;
+  padding: 12px;
+  background: #fbfdff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.managed-price-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.managed-price-row small,
+.managed-price-row span,
+.managed-price-row em {
+  color: var(--muted);
+  font-style: normal;
+}
+
+.managed-price-row em {
+  grid-column: 1 / -1;
+  font-size: 13px;
+}
+
+.price-admin-list {
+  margin-top: 14px;
 }
 
 .form {
@@ -635,7 +713,7 @@ a {
 
 .admin-tabs {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -888,6 +966,7 @@ details .form {
   .crm-grid,
   .crm-card-header,
   .crm-lesson-row,
+  .managed-price-row,
   .admin-item {
     grid-template-columns: 1fr;
   }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { apiForm, apiJson, coachPhotoUrl, contentPostImageUrl, receiptFileUrl } from "../lib/api";
 import { copy, type Lang } from "../data/i18n";
 
-type AdminTab = "work" | "clients" | "payments" | "content" | "messages" | "log";
+type AdminTab = "work" | "clients" | "payments" | "prices" | "content" | "messages" | "log";
 
 type ClientSummary = {
   id: string;
@@ -30,8 +30,25 @@ type LeadSummary = {
   client: { id?: string; telegramId: string; username?: string };
 };
 
+type PriceSummary = {
+  id: string;
+  slug: string;
+  direction: string;
+  branch?: string;
+  titleRu: string;
+  titleKa?: string;
+  titleEn?: string;
+  ageRu?: string;
+  packageRu: string;
+  priceRu: string;
+  noteRu?: string;
+  lessons?: number;
+  sortOrder: number;
+  isActive: boolean;
+};
+
 type Overview = {
-  stats: { clients: number; leads: number; receipts: number; reminders: number; broadcasts: number; enrollments: number; lessons: number; coaches: number; posts: number; notifications: number };
+  stats: { clients: number; leads: number; receipts: number; reminders: number; broadcasts: number; enrollments: number; lessons: number; coaches: number; posts: number; prices: number; notifications: number };
   recentClients: ClientSummary[];
   recentLeads: LeadSummary[];
   recentReceipts: Array<{ id: string; fileName: string; mimeType: string; status: string; client: { id?: string; telegramId: string; username?: string } }>;
@@ -39,8 +56,9 @@ type Overview = {
   recentBroadcasts: Array<{ id: string; title: string; sentCount: number; failedCount: number; sentAt?: string; createdAt: string }>;
   recentEnrollments: Array<{ id: string; title: string; branch?: string; totalLessons: number; usedLessons: number; remainingLessons: number; status: string; client: { id: string; telegramId: string; username?: string; firstName?: string } }>;
   recentLessons: Array<{ id: string; title: string; branch?: string; startsAt: string; status: string; client: { telegramId: string; username?: string; firstName?: string }; enrollment?: { id: string; title: string } }>;
-  recentCoaches: Array<{ id: string; name: string; direction: string; branch?: string; serviceSlugs: string[]; bio?: string; experience?: string; isActive: boolean; hasPhoto: boolean }>;
+  recentCoaches: Array<{ id: string; name: string; direction: string; branch?: string; serviceSlugs: string[]; bio?: string; experience?: string; interview?: string; videoUrl?: string; isActive: boolean; hasPhoto: boolean }>;
   recentPosts: Array<{ id: string; type: string; languageCode: string; title: string; body: string; direction?: string; serviceSlugs: string[]; isPublished: boolean; hasImage: boolean; createdAt: string }>;
+  recentPrices: PriceSummary[];
   recentNotifications: Array<{ id: string; audience: string; type: string; title?: string; message: string; status: string; error?: string; telegramId?: string; createdAt: string; client?: { telegramId: string; username?: string; firstName?: string } | null }>;
 };
 
@@ -136,6 +154,43 @@ export function AdminPanel({ lang }: { lang: Lang }) {
     setBusy("post");
     await apiForm("/api/admin/posts", new FormData(event.currentTarget));
     event.currentTarget.reset();
+    setBusy("");
+    await load();
+  }
+
+  function pricePayload(form: FormData) {
+    return {
+      slug: form.get("slug"),
+      direction: form.get("direction"),
+      branch: form.get("branch"),
+      titleRu: form.get("titleRu"),
+      titleKa: form.get("titleKa"),
+      titleEn: form.get("titleEn"),
+      ageRu: form.get("ageRu"),
+      packageRu: form.get("packageRu"),
+      priceRu: form.get("priceRu"),
+      noteRu: form.get("noteRu"),
+      lessons: Number(form.get("lessons") || 0),
+      sortOrder: Number(form.get("sortOrder") || 0),
+      isActive: form.get("isActive") === "true"
+    };
+  }
+
+  async function createPrice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy("price");
+    await apiJson("/api/admin/prices", { method: "POST", body: JSON.stringify(pricePayload(form)) });
+    event.currentTarget.reset();
+    setBusy("");
+    await load();
+  }
+
+  async function updatePrice(event: FormEvent<HTMLFormElement>, id: string) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy(`price:${id}`);
+    await apiJson(`/api/admin/prices/${id}`, { method: "PATCH", body: JSON.stringify(pricePayload(form)) });
     setBusy("");
     await load();
   }
@@ -247,6 +302,7 @@ export function AdminPanel({ lang }: { lang: Lang }) {
           ["work", "Работа"],
           ["clients", "Клиенты"],
           ["payments", "Оплаты"],
+          ["prices", "Прайс"],
           ["content", "Контент"],
           ["messages", "Рассылки"],
           ["log", "Журнал"]
@@ -359,6 +415,48 @@ export function AdminPanel({ lang }: { lang: Lang }) {
         </section>
       )}
 
+      {tab === "prices" && (
+        <section className="panel">
+          <h2>Прайс</h2>
+          <form className="form" onSubmit={(event) => void createPrice(event)}>
+            <input name="titleRu" placeholder="Название: Грудничковое плавание" required />
+            <input name="slug" placeholder="Код услуги: baby-swim" required />
+            <select name="direction" defaultValue="pool"><option value="pool">Бассейн</option><option value="gym">Зал</option><option value="massage">Массаж</option></select>
+            <input name="branch" placeholder="Локация" />
+            <input name="ageRu" placeholder="Возраст: 1 мес - 12 мес" />
+            <input name="packageRu" placeholder="Пакет: 8 занятий" required />
+            <input name="priceRu" placeholder="Цена: 480 лари / от 40 лари" required />
+            <input name="noteRu" placeholder="Примечание" defaultValue="Уточняйте у администратора" />
+            <input min="0" name="lessons" placeholder="Количество занятий" type="number" />
+            <input name="sortOrder" placeholder="Порядок" type="number" />
+            <select name="isActive" defaultValue="true"><option value="true">Показывать</option><option value="false">Скрыть</option></select>
+            <button className="wide-action" disabled={busy === "price"} type="submit">Добавить строку прайса</button>
+          </form>
+
+          <div className="admin-list price-admin-list">
+            {data.recentPrices.map((price) => (
+              <details key={price.id}>
+                <summary>{price.titleRu} - {price.packageRu} - {price.priceRu} {price.isActive ? "" : "(скрыто)"}</summary>
+                <form className="form" onSubmit={(event) => void updatePrice(event, price.id)}>
+                  <input name="titleRu" defaultValue={price.titleRu} required />
+                  <input name="slug" defaultValue={price.slug} required />
+                  <select name="direction" defaultValue={price.direction}><option value="pool">Бассейн</option><option value="gym">Зал</option><option value="massage">Массаж</option></select>
+                  <input name="branch" defaultValue={price.branch || ""} />
+                  <input name="ageRu" defaultValue={price.ageRu || ""} />
+                  <input name="packageRu" defaultValue={price.packageRu} required />
+                  <input name="priceRu" defaultValue={price.priceRu} required />
+                  <input name="noteRu" defaultValue={price.noteRu || ""} />
+                  <input min="0" name="lessons" defaultValue={price.lessons ?? 0} type="number" />
+                  <input name="sortOrder" defaultValue={price.sortOrder} type="number" />
+                  <select name="isActive" defaultValue={String(price.isActive)}><option value="true">Показывать</option><option value="false">Скрыть</option></select>
+                  <button className="wide-action" disabled={busy === `price:${price.id}`} type="submit">Сохранить</button>
+                </form>
+              </details>
+            ))}
+          </div>
+        </section>
+      )}
+
       {tab === "content" && (
         <>
           <section className="panel">
@@ -370,6 +468,8 @@ export function AdminPanel({ lang }: { lang: Lang }) {
               <input name="serviceSlugs" placeholder="Service slugs: baby-swim,kids-swim" />
               <input name="experience" placeholder="Experience" />
               <textarea name="bio" placeholder="Coach description" rows={3} />
+              <textarea name="interview" placeholder="Interview / characteristics" rows={3} />
+              <input name="videoUrl" placeholder="Video URL" />
               <select name="isActive" defaultValue="true"><option value="true">Visible</option><option value="false">Hidden</option></select>
               <input accept="image/*" name="photo" type="file" />
               <button className="wide-action" disabled={busy === "coach"} type="submit">Add coach</button>

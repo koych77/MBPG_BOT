@@ -19,7 +19,7 @@ export const services = [
       ka: "ჩვილების ცურვა",
       en: "Baby swimming"
     },
-    age: { ru: "1-12 месяцев", ka: "1-12 თვე", en: "1-12 months" },
+    age: { ru: "1 мес - 12 мес", ka: "1-12 თვე", en: "1-12 months" },
     duration: { ru: "30 минут", ka: "30 წუთი", en: "30 minutes" },
     description: {
       ru: "Индивидуальные чаши с кристально чистой водой питьевого стандарта 32-34°C. Формат: родитель-малыш или инструктор-малыш.",
@@ -44,7 +44,7 @@ export const services = [
     direction: "pool" as Direction,
     icon: Waves,
     title: { ru: "Плавание для детей", ka: "ბავშვების ცურვა", en: "Kids swimming" },
-    age: { ru: "1-10 лет", ka: "1-10 წელი", en: "1-10 years" },
+    age: { ru: "1 год - 10 лет", ka: "1-10 წელი", en: "1-10 years" },
     duration: { ru: "30 минут индивидуально, 40-45 минут в группе", ka: "30 წუთი ინდივიდუალურად, 40-45 წუთი ჯგუფში", en: "30 min private, 40-45 min group" },
     description: {
       ru: "Разминка, аква-гимнастика, обучение плаванию и ныркам. Индивидуальные и групповые занятия с тренером.",
@@ -64,11 +64,32 @@ export const services = [
     ]
   },
   {
+    slug: "baby-motor",
+    direction: "pool" as Direction,
+    icon: Baby,
+    title: { ru: "Двигательная моторика для грудных детей", ka: "ჩვილების მოტორიკა", en: "Motor skills for babies" },
+    age: { ru: "1 мес - 2 года", ka: "1 თვე - 2 წელი", en: "1 month - 2 years" },
+    duration: { ru: "уточняйте у администратора", ka: "დააზუსტეთ ადმინისტრატორთან", en: "ask the administrator" },
+    description: {
+      ru: "Мягкие развивающие занятия для координации, движений, мышечного тонуса и уверенности малыша.",
+      ka: "რბილი განვითარებითი ვარჯიშები კოორდინაციის, მოძრაობისა და კუნთოვანი ტონუსისთვის.",
+      en: "Gentle developmental classes for coordination, movement, muscle tone, and baby confidence."
+    },
+    benefit: {
+      ru: "Помогает ребенку лучше чувствовать тело, развивать движения и готовиться к активному росту.",
+      ka: "ეხმარება ბავშვს სხეულის შეგრძნებაში, მოძრაობის განვითარებასა და აქტიურ ზრდაში.",
+      en: "Helps babies feel their body better, develop movement, and prepare for active growth."
+    },
+    prices: [
+      { ru: "Уточняйте у администратора", ka: "დააზუსტეთ ადმინისტრატორთან", en: "Ask the administrator for details" }
+    ]
+  },
+  {
     slug: "gym-groups",
     direction: "gym" as Direction,
     icon: Dumbbell,
     title: { ru: "Детские спортивные группы", ka: "ბავშვების სპორტული ჯგუფები", en: "Kids sports groups" },
-    age: { ru: "3-16 лет", ka: "3-16 წელი", en: "3-16 years" },
+    age: { ru: "3,5 лет - 16 лет", ka: "3.5-16 წელი", en: "3.5-16 years" },
     duration: { ru: "30 минут Бэби фит, 50 минут остальные направления", ka: "30 წუთი Baby Fit, 50 წუთი სხვა მიმართულებები", en: "30 min Baby Fit, 50 min other classes" },
     description: {
       ru: "Бэби фит, кроссфит с навыками самообороны, классическая и художественная гимнастика, хип-хоп.",
@@ -91,7 +112,7 @@ export const services = [
     direction: "massage" as Direction,
     icon: HeartPulse,
     title: { ru: "Детский массаж", ka: "ბავშვის მასაჟი", en: "Child massage" },
-    age: { ru: "Для детей", ka: "ბავშვებისთვის", en: "For children" },
+    age: { ru: "1 мес - 16 лет", ka: "1 თვე - 16 წელი", en: "1 month - 16 years" },
     duration: { ru: "30 минут", ka: "30 წუთი", en: "30 minutes" },
     description: {
       ru: "Мягкое воздействие на мышцы, кожу и суставы для здоровья, гармоничного развития и хорошего самочувствия.",

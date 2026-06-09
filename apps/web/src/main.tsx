@@ -34,6 +34,7 @@ type Dashboard = {
     usedLessons: number;
     remainingLessons: number;
     status: string;
+    endDate?: string | null;
     lessons: Array<{ id: string; title: string; startsAt: string; status: string; branch?: string }>;
   }>;
   upcomingLessons: Array<{ id: string; title: string; startsAt: string; status: string; branch?: string }>;
@@ -60,20 +61,44 @@ type ContentFeed = {
     serviceSlugs: string[];
     bio?: string | null;
     experience?: string | null;
+    interview?: string | null;
+    videoUrl?: string | null;
     hasPhoto: boolean;
   }>;
 };
 
+type PriceItem = {
+  id: string;
+  slug: string;
+  direction: Direction;
+  branch?: string | null;
+  titleRu: string;
+  titleKa?: string | null;
+  titleEn?: string | null;
+  ageRu?: string | null;
+  ageKa?: string | null;
+  ageEn?: string | null;
+  packageRu: string;
+  packageKa?: string | null;
+  packageEn?: string | null;
+  priceRu: string;
+  priceKa?: string | null;
+  priceEn?: string | null;
+  noteRu?: string | null;
+  noteKa?: string | null;
+  noteEn?: string | null;
+  lessons?: number | null;
+};
+
 const contentCopy: Record<Lang, {
   page: string;
-  news: string;
   promo: string;
   coaches: string;
   empty: string;
 }> = {
-  ru: { page: "Новости", news: "Новости", promo: "Акции", coaches: "Тренеры", empty: "Пока нет опубликованных материалов." },
-  ka: { page: "სიახლეები", news: "სიახლეები", promo: "აქციები", coaches: "ტრენერები", empty: "გამოქვეყნებული მასალები ჯერ არ არის." },
-  en: { page: "News", news: "News", promo: "Promos", coaches: "Coaches", empty: "No published materials yet." }
+  ru: { page: "?????", promo: "?????", coaches: "???????", empty: "???? ??? ?????????????? ??????????." },
+  ka: { page: "???????", promo: "???????", coaches: "?????", empty: "?????????????? ???????? ??? ?? ????." },
+  en: { page: "Promos", promo: "Promos", coaches: "Team", empty: "No published materials yet." }
 };
 
 const actionCopy: Record<Lang, {
@@ -155,6 +180,7 @@ function App() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [content, setContent] = useState<ContentFeed | null>(null);
+  const [prices, setPrices] = useState<PriceItem[]>([]);
   const t = copy[lang];
 
   const activeService = useMemo(
@@ -189,6 +215,12 @@ function App() {
       .then(setContent)
       .catch(() => setContent({ posts: [], coaches: [] }));
   }, [lang]);
+
+  useEffect(() => {
+    void apiJson<{ prices: PriceItem[] }>("/api/content/prices")
+      .then((result) => setPrices(result.prices))
+      .catch(() => setPrices([]));
+  }, []);
 
   if (window.location.pathname === "/admin") {
     return (
@@ -231,7 +263,7 @@ function App() {
               <p>{t.subtitle}</p>
               <div className="hero-actions">
                 <button onClick={() => setPage("book")} type="button"><CalendarCheck size={18} />{t.book}</button>
-                <button className="secondary" onClick={() => setPage("receipt")} type="button"><ReceiptText size={18} />{t.receipt}</button>
+                <button className="secondary" onClick={openCabinetOrBooking} type="button"><ClipboardList size={18} />{dashboard?.hasCabinet ? actionCopy[lang].cabinet : t.prices}</button>
               </div>
             </section>
 
@@ -239,16 +271,19 @@ function App() {
               <h2>{t.choose}</h2>
               <div className="direction-grid">
                 <button onClick={() => openDirection("pool")} type="button">
+                  <span className="location-mark">POOL</span>
                   <strong>{t.pool}</strong>
                   <span>Javakhishvili 28</span>
                 </button>
                 <button onClick={() => openDirection("gym")} type="button">
+                  <span className="location-mark gym">GYM</span>
                   <strong>{t.gym}</strong>
                   <span>Gorgasali 127</span>
                 </button>
                 <button onClick={() => openDirection("massage")} type="button">
+                  <span className="location-mark massage">SPA</span>
                   <strong>{t.massage}</strong>
-                  <span>30 min · 350 GEL</span>
+                  <span>Pool Javakhishvili 28</span>
                 </button>
               </div>
             </section>
@@ -291,7 +326,7 @@ function App() {
 
         {page === "book" && <BookingForm lang={lang} serviceSlug={serviceSlug} direction={direction} onDone={setNotice} onSaved={() => void refreshDashboard()} />}
         {page === "cabinet" && <ClientCabinet dashboard={dashboard} lang={lang} onAdd={() => setPage("book")} onReceipt={() => setPage("receipt")} />}
-        {page === "prices" && <Prices lang={lang} onBack={() => setPage("home")} />}
+        {page === "prices" && <Prices lang={lang} prices={prices} onBack={() => setPage("home")} />}
         {page === "news" && <NewsPage content={content} lang={lang} onBook={() => setPage("book")} />}
         {page === "contacts" && <Contacts lang={lang} onBack={() => setPage("home")} />}
         {page === "receipt" && <ReceiptUpload lang={lang} onDone={setNotice} />}
@@ -312,7 +347,10 @@ function App() {
 function Header({ lang, setLang }: { lang: Lang; setLang: (lang: Lang) => void }) {
   return (
     <header className="topbar">
-      <strong>MBPG</strong>
+      <div className="brand-lockup">
+        <strong>MBPG</strong>
+        <span>{copy[lang].subtitle}</span>
+      </div>
       <LanguageSwitch value={lang} onChange={setLang} />
     </header>
   );
@@ -324,7 +362,7 @@ function BackButton({ onClick, label }: { onClick: () => void; label: string }) 
 
 function NewsPage({ content, lang, onBook }: { content: ContentFeed | null; lang: Lang; onBook: () => void }) {
   const text = contentCopy[lang];
-  const [tab, setTab] = useState<"news" | "promo" | "coaches">("news");
+  const [tab, setTab] = useState<"promo" | "coaches">("promo");
   const posts = content?.posts.filter((post) => post.type === tab) ?? [];
   const coaches = content?.coaches ?? [];
 
@@ -333,8 +371,7 @@ function NewsPage({ content, lang, onBook }: { content: ContentFeed | null; lang
       <section className="panel">
         <h2>{text.page}</h2>
         <div className="tabs">
-          <button className={tab === "news" ? "active" : ""} onClick={() => setTab("news")} type="button"><Newspaper size={16} />{text.news}</button>
-          <button className={tab === "promo" ? "active" : ""} onClick={() => setTab("promo")} type="button">{text.promo}</button>
+          <button className={tab === "promo" ? "active" : ""} onClick={() => setTab("promo")} type="button"><Newspaper size={16} />{text.promo}</button>
           <button className={tab === "coaches" ? "active" : ""} onClick={() => setTab("coaches")} type="button">{text.coaches}</button>
         </div>
       </section>
@@ -371,7 +408,9 @@ function NewsPage({ content, lang, onBook }: { content: ContentFeed | null; lang
                   <h3>{coach.name}</h3>
                   {coach.experience && <strong>{coach.experience}</strong>}
                   {coach.bio && <p>{coach.bio}</p>}
+                  {coach.interview && <p>{coach.interview}</p>}
                   <small>{coach.branch || ""}{coach.serviceSlugs.length ? ` - ${coach.serviceSlugs.map((slug) => serviceTitle(slug, lang)).join(", ")}` : ""}</small>
+                  {coach.videoUrl && <a href={coach.videoUrl} target="_blank" rel="noreferrer">Видео</a>}
                   <button className="mini-button" onClick={onBook} type="button">{copy[lang].book}</button>
                 </div>
               </article>
@@ -506,7 +545,7 @@ function ClientCabinet({ dashboard, lang, onAdd, onReceipt }: { dashboard: Dashb
               <strong>{enrollment.title}</strong>
               <p>{action.used}: {enrollment.usedLessons} · {action.remaining}: {enrollment.remainingLessons}</p>
               <div className="progress"><span style={{ width: `${enrollment.totalLessons > 0 ? Math.min((enrollment.usedLessons / enrollment.totalLessons) * 100, 100) : 0}%` }} /></div>
-              <small>{enrollment.branch || ""} · {enrollment.status}</small>
+              <small>{enrollment.branch || ""} · {enrollment.status}{enrollment.endDate ? ` · действует до ${new Date(enrollment.endDate).toLocaleDateString()}` : ""}</small>
             </article>
           ))}
         </div>
@@ -515,7 +554,12 @@ function ClientCabinet({ dashboard, lang, onAdd, onReceipt }: { dashboard: Dashb
       <section className="panel">
         <h2>{action.schedule}</h2>
         <div className="cabinet-list">
-          {dashboard.upcomingLessons.length === 0 && <p className="muted">Ближайшие занятия пока не назначены.</p>}
+          {dashboard.upcomingLessons.length === 0 && (
+            <article className="cabinet-item">
+              <strong>Ближайшие занятия пока не назначены.</strong>
+              <button className="mini-button" onClick={onAdd} type="button">{copy[lang].book}</button>
+            </article>
+          )}
           {dashboard.upcomingLessons.map((lesson) => (
             <article className="cabinet-item" key={lesson.id}>
               <strong>{lesson.title}</strong>
@@ -528,19 +572,10 @@ function ClientCabinet({ dashboard, lang, onAdd, onReceipt }: { dashboard: Dashb
 
       <section className="panel">
         <div className="section-head">
-          <h2>{action.payments}</h2>
+          <h2>{copy[lang].receipt}</h2>
           <button className="mini-button" onClick={onReceipt} type="button"><ReceiptText size={16} />{copy[lang].receipt}</button>
         </div>
-        <div className="cabinet-list">
-          {dashboard.receipts.length === 0 && <p className="muted">Чеки пока не отправлялись.</p>}
-          {dashboard.receipts.map((receipt) => (
-            <article className="cabinet-item" key={receipt.id}>
-              <strong>{receipt.fileName}</strong>
-              <p>{new Date(receipt.createdAt).toLocaleString()}</p>
-              <span className={`status-pill ${receipt.status.toLowerCase()}`}>{receipt.status}</span>
-            </article>
-          ))}
-        </div>
+        <p className="muted">Если вы уже оплатили абонемент, отправьте чек администратору на проверку.</p>
       </section>
     </>
   );
@@ -606,22 +641,64 @@ function ReceiptUpload({ lang, onDone }: { lang: Lang; onDone: (notice: Notice) 
   );
 }
 
-function Prices({ lang, onBack }: { lang: Lang; onBack: () => void }) {
+function Prices({ lang, prices, onBack }: { lang: Lang; prices: PriceItem[]; onBack: () => void }) {
   const t = copy[lang];
+  const groupedPrices = prices.length > 0
+    ? prices.reduce<Record<string, PriceItem[]>>((groups, price) => {
+      const key = price.direction;
+      groups[key] = [...(groups[key] ?? []), price];
+      return groups;
+    }, {})
+    : {};
+  const hasManagedPrices = Object.keys(groupedPrices).length > 0;
+
   return (
     <section className="panel">
       <BackButton onClick={onBack} label={t.back} />
       <h2>{t.prices}</h2>
-      {services.map((service) => (
-        <article className="price-block" key={service.slug}>
-          <strong>{service.title[lang]}</strong>
-          <ul className="price-list">
-            {service.prices.map((price) => <li key={price.ru}>{price[lang]}</li>)}
-          </ul>
-        </article>
-      ))}
+      {hasManagedPrices ? (
+        Object.entries(groupedPrices).map(([directionKey, items]) => (
+          <article className="price-block" key={directionKey}>
+            <strong>{directionLabel(directionKey, lang)}</strong>
+            <div className="managed-price-list">
+              {items.map((price) => (
+                <div className="managed-price-row" key={price.id}>
+                  <div>
+                    <b>{localizedPriceField(price, "title", lang)}</b>
+                    {localizedPriceField(price, "age", lang) && <small>{localizedPriceField(price, "age", lang)}</small>}
+                    <span>{localizedPriceField(price, "package", lang)}</span>
+                  </div>
+                  <strong>{localizedPriceField(price, "price", lang)}</strong>
+                  {localizedPriceField(price, "note", lang) && <em>{localizedPriceField(price, "note", lang)}</em>}
+                </div>
+              ))}
+            </div>
+          </article>
+        ))
+      ) : (
+        services.map((service) => (
+          <article className="price-block" key={service.slug}>
+            <strong>{service.title[lang]}</strong>
+            <ul className="price-list">
+              {service.prices.map((price) => <li key={price.ru}>{price[lang]}</li>)}
+            </ul>
+          </article>
+        ))
+      )}
     </section>
   );
+}
+
+function localizedPriceField(price: PriceItem, field: "title" | "age" | "package" | "price" | "note", lang: Lang) {
+  const suffix = lang === "ka" ? "Ka" : lang === "en" ? "En" : "Ru";
+  const key = `${field}${suffix}` as keyof PriceItem;
+  return String(price[key] || price[`${field}Ru` as keyof PriceItem] || "");
+}
+
+function directionLabel(directionKey: string, lang: Lang) {
+  if (directionKey === "pool") return copy[lang].pool;
+  if (directionKey === "gym") return copy[lang].gym;
+  return copy[lang].massage;
 }
 
 function Contacts({ lang, onBack }: { lang: Lang; onBack: () => void }) {

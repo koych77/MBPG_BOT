@@ -27,7 +27,7 @@ adminRouter.use((req, _res, next) => {
 
 adminRouter.get("/overview", async (_req, res, next) => {
   try {
-    const [clients, leads, receipts, reminders, broadcasts, enrollments, lessons, coaches, posts, notifications, recentClients, recentLeads, recentReceipts, recentReminders, recentBroadcasts, recentEnrollments, recentLessons, recentCoaches, recentPosts, recentNotifications] = await Promise.all([
+    const [clients, leads, receipts, reminders, broadcasts, enrollments, lessons, coaches, posts, prices, notifications, recentClients, recentLeads, recentReceipts, recentReminders, recentBroadcasts, recentEnrollments, recentLessons, recentCoaches, recentPosts, recentPrices, recentNotifications] = await Promise.all([
       prisma.client.count({ where: { projectKey: env.projectKey } }),
       prisma.lead.count({ where: { projectKey: env.projectKey } }),
       prisma.receipt.count({ where: { projectKey: env.projectKey } }),
@@ -37,6 +37,7 @@ adminRouter.get("/overview", async (_req, res, next) => {
       prisma.lesson.count({ where: { projectKey: env.projectKey } }),
       prisma.coach.count({ where: { projectKey: env.projectKey } }),
       prisma.contentPost.count({ where: { projectKey: env.projectKey } }),
+      prisma.servicePrice.count({ where: { projectKey: env.projectKey } }),
       prisma.notificationLog.count({ where: { projectKey: env.projectKey } }),
       prisma.client.findMany({
         where: { projectKey: env.projectKey },
@@ -92,6 +93,11 @@ adminRouter.get("/overview", async (_req, res, next) => {
         orderBy: { updatedAt: "desc" },
         take: 40
       }),
+      prisma.servicePrice.findMany({
+        where: { projectKey: env.projectKey },
+        orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
+        take: 100
+      }),
       prisma.notificationLog.findMany({
         where: { projectKey: env.projectKey },
         include: { client: true },
@@ -101,7 +107,7 @@ adminRouter.get("/overview", async (_req, res, next) => {
     ]);
 
     res.json({
-      stats: { clients, leads, receipts, reminders, broadcasts, enrollments, lessons, coaches, posts, notifications },
+      stats: { clients, leads, receipts, reminders, broadcasts, enrollments, lessons, coaches, posts, prices, notifications },
       recentClients: recentClients.map((client) => ({
         ...client,
         telegramId: client.telegramId.toString()
@@ -131,6 +137,7 @@ adminRouter.get("/overview", async (_req, res, next) => {
       })),
       recentCoaches: recentCoaches.map((coach) => ({ ...coach, photoData: undefined, hasPhoto: Boolean(coach.photoData) })),
       recentPosts: recentPosts.map((post) => ({ ...post, imageData: undefined, hasImage: Boolean(post.imageData) })),
+      recentPrices,
       recentNotifications: recentNotifications.map((notification) => ({
         ...notification,
         telegramId: notification.telegramId?.toString(),
@@ -439,6 +446,67 @@ adminRouter.patch("/lessons/:id/status", async (req, res, next) => {
   }
 });
 
+const priceSchema = z.object({
+  slug: z.string().min(2),
+  direction: z.enum(["pool", "gym", "massage"]),
+  branch: z.string().optional(),
+  titleRu: z.string().min(2),
+  titleKa: z.string().optional(),
+  titleEn: z.string().optional(),
+  ageRu: z.string().optional(),
+  ageKa: z.string().optional(),
+  ageEn: z.string().optional(),
+  packageRu: z.string().min(1),
+  packageKa: z.string().optional(),
+  packageEn: z.string().optional(),
+  priceRu: z.string().min(1),
+  priceKa: z.string().optional(),
+  priceEn: z.string().optional(),
+  noteRu: z.string().optional(),
+  noteKa: z.string().optional(),
+  noteEn: z.string().optional(),
+  lessons: z.coerce.number().int().min(0).optional(),
+  sortOrder: z.coerce.number().int().default(0),
+  isActive: z.coerce.boolean().default(true)
+});
+
+adminRouter.post("/prices", async (req, res, next) => {
+  try {
+    const body = priceSchema.parse(req.body);
+    const price = await prisma.servicePrice.create({
+      data: {
+        projectKey: env.projectKey,
+        ...body
+      }
+    });
+    res.status(201).json({ price });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const priceUpdateSchema = priceSchema.partial();
+
+adminRouter.patch("/prices/:id", async (req, res, next) => {
+  try {
+    const body = priceUpdateSchema.parse(req.body);
+    const current = await prisma.servicePrice.findFirst({
+      where: { id: String(req.params.id), projectKey: env.projectKey }
+    });
+    if (!current) {
+      res.status(404).json({ error: "Price not found" });
+      return;
+    }
+    const price = await prisma.servicePrice.update({
+      where: { id: current.id },
+      data: body
+    });
+    res.json({ price });
+  } catch (error) {
+    next(error);
+  }
+});
+
 const coachSchema = z.object({
   name: z.string().min(2),
   direction: z.enum(["pool", "gym", "massage"]),
@@ -446,6 +514,8 @@ const coachSchema = z.object({
   serviceSlugs: z.string().optional(),
   bio: z.string().optional(),
   experience: z.string().optional(),
+  interview: z.string().optional(),
+  videoUrl: z.string().optional(),
   isActive: z.coerce.boolean().default(true)
 });
 
@@ -462,6 +532,8 @@ adminRouter.post("/coaches", imageUpload.single("photo"), async (req, res, next)
         serviceSlugs: body.serviceSlugs ? body.serviceSlugs.split(",").map((item) => item.trim()).filter(Boolean) : [],
         bio: body.bio,
         experience: body.experience,
+        interview: body.interview,
+        videoUrl: body.videoUrl,
         isActive: body.isActive,
         photoFileName: req.file?.originalname,
         photoMimeType: req.file?.mimetype,
