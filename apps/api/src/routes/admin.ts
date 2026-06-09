@@ -5,7 +5,6 @@ import { z } from "zod";
 import { prisma } from "../prisma.js";
 import { env } from "../env.js";
 import { requireAdmin } from "./auth.js";
-import { bot } from "../bot/index.js";
 import { sendAdminNotification, sendClientNotification } from "../bot/notifications.js";
 
 export const adminRouter = Router();
@@ -655,41 +654,55 @@ adminRouter.patch("/reminders/:id/cancel", async (req, res, next) => {
 const broadcastSchema = z.object({
   title: z.string().min(2),
   message: z.string().min(3),
-  audience: z.enum(["all"]).default("all")
+  type: z.enum(["lesson", "payment", "promo", "news", "custom"]).default("custom"),
+  audience: z.enum(["all", "active", "low_balance", "no_schedule", "direction", "branch"]).default("all"),
+  direction: z.enum(["pool", "gym", "massage"]).optional(),
+  branch: z.string().optional(),
+  scheduledAt: z.string().datetime().optional()
 });
 
 adminRouter.post("/broadcasts", async (req, res, next) => {
   try {
     const body = broadcastSchema.parse(req.body);
-    const clients = await prisma.client.findMany({
-      where: { projectKey: env.projectKey },
-      orderBy: { updatedAt: "desc" }
-    });
-
-    let sentCount = 0;
-    let failedCount = 0;
-    for (const client of clients) {
-      try {
-        await bot.api.sendMessage(client.telegramId.toString(), body.message);
-        sentCount += 1;
-      } catch {
-        failedCount += 1;
-      }
-    }
-
     const broadcast = await prisma.broadcast.create({
       data: {
         projectKey: env.projectKey,
         title: body.title,
         message: body.message,
+        type: body.type,
         audience: body.audience,
-        sentCount,
-        failedCount,
-        sentAt: new Date()
+        direction: body.direction,
+        branch: body.branch,
+        status: "SCHEDULED",
+        scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : new Date()
       }
     });
 
     res.status(201).json({ broadcast });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const broadcastStatusSchema = z.object({
+  status: z.enum(["SCHEDULED", "CANCELED"])
+});
+
+adminRouter.patch("/broadcasts/:id/status", async (req, res, next) => {
+  try {
+    const body = broadcastStatusSchema.parse(req.body);
+    const current = await prisma.broadcast.findFirst({
+      where: { id: String(req.params.id), projectKey: env.projectKey }
+    });
+    if (!current) {
+      res.status(404).json({ error: "Broadcast not found" });
+      return;
+    }
+    const broadcast = await prisma.broadcast.update({
+      where: { id: current.id },
+      data: { status: body.status }
+    });
+    res.json({ broadcast });
   } catch (error) {
     next(error);
   }

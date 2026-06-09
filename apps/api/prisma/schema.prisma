@@ -199,12 +199,19 @@ model Broadcast {
   title       String
   message     String
   audience    String    @default("all")
+  type        String    @default("custom")
+  status      String    @default("SENT")
+  direction   String?
+  branch      String?
+  scheduledAt DateTime?
   sentCount   Int       @default(0)
   failedCount Int       @default(0)
   createdAt   DateTime  @default(now())
   sentAt      DateTime?
 
   @@index([projectKey, createdAt])
+  @@index([projectKey, status, scheduledAt])
+  @@index([projectKey, audience])
 }
 
 model NotificationLog {

@@ -53,7 +53,7 @@ type Overview = {
   recentLeads: LeadSummary[];
   recentReceipts: Array<{ id: string; fileName: string; mimeType: string; status: string; client: { id?: string; telegramId: string; username?: string } }>;
   recentReminders: Array<{ id: string; type: string; message: string; dueAt: string; status: string; client: { id?: string; telegramId: string; username?: string } }>;
-  recentBroadcasts: Array<{ id: string; title: string; sentCount: number; failedCount: number; sentAt?: string; createdAt: string }>;
+  recentBroadcasts: Array<{ id: string; title: string; message: string; type: string; audience: string; direction?: string; branch?: string; status: string; scheduledAt?: string; sentCount: number; failedCount: number; sentAt?: string; createdAt: string }>;
   recentEnrollments: Array<{ id: string; title: string; branch?: string; totalLessons: number; usedLessons: number; remainingLessons: number; status: string; client: { id: string; telegramId: string; username?: string; firstName?: string } }>;
   recentLessons: Array<{ id: string; title: string; branch?: string; startsAt: string; status: string; client: { telegramId: string; username?: string; firstName?: string }; enrollment?: { id: string; title: string } }>;
   recentCoaches: Array<{ id: string; name: string; direction: string; branch?: string; serviceSlugs: string[]; bio?: string; experience?: string; interview?: string; videoUrl?: string; isActive: boolean; hasPhoto: boolean }>;
@@ -219,10 +219,23 @@ export function AdminPanel({ lang }: { lang: Lang }) {
     setBusy("broadcast");
     await apiJson("/api/admin/broadcasts", {
       method: "POST",
-      body: JSON.stringify({ title: form.get("title"), message: form.get("message"), audience: "all" })
+      body: JSON.stringify({
+        title: form.get("title"),
+        message: form.get("message"),
+        type: form.get("type"),
+        audience: form.get("audience"),
+        direction: form.get("direction") || undefined,
+        branch: form.get("branch") || undefined,
+        scheduledAt: form.get("scheduledAt") ? new Date(String(form.get("scheduledAt"))).toISOString() : undefined
+      })
     });
     event.currentTarget.reset();
     setBusy("");
+    await load();
+  }
+
+  async function cancelBroadcast(id: string) {
+    await apiJson(`/api/admin/broadcasts/${id}/status`, { method: "PATCH", body: JSON.stringify({ status: "CANCELED" }) });
     await load();
   }
 
@@ -500,7 +513,7 @@ export function AdminPanel({ lang }: { lang: Lang }) {
       {tab === "messages" && (
         <>
           <section className="panel">
-            <h2>Напоминание клиенту</h2>
+            <h2>??????????? ???????</h2>
             <form className="form" onSubmit={(event) => void createReminder(event)}>
               <ClientSelect clients={data.recentClients} />
               <select name="type" defaultValue="custom"><option value="lesson">Lesson reminder</option><option value="payment">Payment reminder</option><option value="promo">Promo</option><option value="news">News</option><option value="custom">Custom</option></select>
@@ -511,15 +524,42 @@ export function AdminPanel({ lang }: { lang: Lang }) {
           </section>
 
           <section className="panel">
-            <h2>Рассылка всем</h2>
+            <h2>?????????? ?????????????</h2>
             <form className="form" onSubmit={(event) => void sendBroadcast(event)}>
-              <input name="title" placeholder="Campaign title" required />
-              <textarea name="message" placeholder="Message for all saved Telegram clients" required rows={4} />
-              <button className="wide-action" disabled={busy === "broadcast"} type="submit">Send to all clients</button>
+              <input name="title" placeholder="???????? ????????" required />
+              <select name="type" defaultValue="custom">
+                <option value="lesson">??????????? ? ???????</option>
+                <option value="payment">??????????? ?? ??????</option>
+                <option value="promo">?????</option>
+                <option value="news">???????</option>
+                <option value="custom">??????</option>
+              </select>
+              <select name="audience" defaultValue="all">
+                <option value="all">??? ???????</option>
+                <option value="active">???????? ??????????</option>
+                <option value="low_balance">???????? 0-2 ???????</option>
+                <option value="no_schedule">??? ?????????? ???????</option>
+                <option value="direction">?? ???????????</option>
+                <option value="branch">?? ???????</option>
+              </select>
+              <select name="direction" defaultValue="">
+                <option value="">??????????? ?? ???????</option>
+                <option value="pool">???????</option>
+                <option value="gym">???</option>
+                <option value="massage">??????</option>
+              </select>
+              <select name="branch" defaultValue="">
+                <option value="">??????? ?? ???????</option>
+                <option value="Pool Javakhishvili 28">Pool Javakhishvili 28</option>
+                <option value="Gym Gorgasali 127">Gym Gorgasali 127</option>
+              </select>
+              <input name="scheduledAt" type="datetime-local" />
+              <textarea name="message" placeholder="????? ???????????" required rows={4} />
+              <button className="wide-action" disabled={busy === "broadcast"} type="submit">????????????? ???????????</button>
             </form>
           </section>
 
-          <TaskSection title="Запланированные напоминания" empty="Нет запланированных напоминаний.">
+          <TaskSection title="??????????????? ???????????" empty="??? ??????????????? ???????????.">
             {data.recentReminders.map((reminder) => (
               <article className="admin-item" key={reminder.id}>
                 <div><strong>{reminder.type} - {reminder.status}</strong><p>{reminder.message}</p><small>TG {reminder.client.telegramId} - {new Date(reminder.dueAt).toLocaleString()}</small></div>
@@ -528,10 +568,15 @@ export function AdminPanel({ lang }: { lang: Lang }) {
             ))}
           </TaskSection>
 
-          <TaskSection title="История рассылок" empty="Рассылок пока нет.">
+          <TaskSection title="??????? ????????" empty="???????? ???? ???.">
             {data.recentBroadcasts.map((broadcast) => (
               <article className="admin-item" key={broadcast.id}>
-                <div><strong>{broadcast.title}</strong><p>Sent {broadcast.sentCount} - failed {broadcast.failedCount}</p><small>{new Date(broadcast.sentAt || broadcast.createdAt).toLocaleString()}</small></div>
+                <div>
+                  <strong>{broadcast.title} - {broadcast.status}</strong>
+                  <p>{broadcast.message}</p>
+                  <small>{broadcast.type} - {broadcast.audience}{broadcast.direction ? ` - ${broadcast.direction}` : ""}{broadcast.branch ? ` - ${broadcast.branch}` : ""} - scheduled {broadcast.scheduledAt ? new Date(broadcast.scheduledAt).toLocaleString() : "now"} - sent {broadcast.sentCount} - failed {broadcast.failedCount}</small>
+                </div>
+                {broadcast.status === "SCHEDULED" && <button className="mini-button" onClick={() => void cancelBroadcast(broadcast.id)} type="button">????????</button>}
               </article>
             ))}
           </TaskSection>
