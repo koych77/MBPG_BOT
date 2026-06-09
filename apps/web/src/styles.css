@@ -57,8 +57,9 @@ a {
   top: 0;
   z-index: 20;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
   min-height: calc(58px + env(safe-area-inset-top) + var(--tg-top-offset));
   padding: calc(var(--tg-top-offset) + env(safe-area-inset-top)) 24px 12px;
   background: rgba(255, 255, 255, 0.92);
@@ -78,14 +79,12 @@ a {
 }
 
 .brand-lockup span {
-  max-width: 240px;
-  overflow: hidden;
+  max-width: min(440px, calc(100vw - 190px));
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .language-switch {

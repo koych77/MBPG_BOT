@@ -96,8 +96,8 @@ const contentCopy: Record<Lang, {
   coaches: string;
   empty: string;
 }> = {
-  ru: { page: "?????", promo: "?????", coaches: "???????", empty: "???? ??? ?????????????? ??????????." },
-  ka: { page: "???????", promo: "???????", coaches: "?????", empty: "?????????????? ???????? ??? ?? ????." },
+  ru: { page: "Акции", promo: "Акции", coaches: "Команда", empty: "Пока нет опубликованных материалов." },
+  ka: { page: "აქციები", promo: "აქციები", coaches: "გუნდი", empty: "გამოქვეყნებული მასალები ჯერ არ არის." },
   en: { page: "Promos", promo: "Promos", coaches: "Team", empty: "No published materials yet." }
 };
 
@@ -518,7 +518,6 @@ function ClientCabinet({ dashboard, lang, onAdd, onReceipt }: { dashboard: Dashb
       <section className="panel">
         <div className="section-head">
           <h2>{action.cabinet}</h2>
-          <button className="mini-button" onClick={onAdd} type="button"><ClipboardList size={16} />{action.addLesson}</button>
         </div>
       </section>
 

@@ -513,7 +513,7 @@ export function AdminPanel({ lang }: { lang: Lang }) {
       {tab === "messages" && (
         <>
           <section className="panel">
-            <h2>??????????? ???????</h2>
+            <h2>Напоминание клиенту</h2>
             <form className="form" onSubmit={(event) => void createReminder(event)}>
               <ClientSelect clients={data.recentClients} />
               <select name="type" defaultValue="custom"><option value="lesson">Lesson reminder</option><option value="payment">Payment reminder</option><option value="promo">Promo</option><option value="news">News</option><option value="custom">Custom</option></select>
@@ -524,42 +524,42 @@ export function AdminPanel({ lang }: { lang: Lang }) {
           </section>
 
           <section className="panel">
-            <h2>?????????? ?????????????</h2>
+            <h2>Управление уведомлениями</h2>
             <form className="form" onSubmit={(event) => void sendBroadcast(event)}>
-              <input name="title" placeholder="???????? ????????" required />
+              <input name="title" placeholder="Название кампании" required />
               <select name="type" defaultValue="custom">
-                <option value="lesson">??????????? ? ???????</option>
-                <option value="payment">??????????? ?? ??????</option>
-                <option value="promo">?????</option>
-                <option value="news">???????</option>
-                <option value="custom">??????</option>
+                <option value="lesson">Напоминание о занятии</option>
+                <option value="payment">Напоминание об оплате</option>
+                <option value="promo">Акция</option>
+                <option value="news">Новость</option>
+                <option value="custom">Другое</option>
               </select>
               <select name="audience" defaultValue="all">
-                <option value="all">??? ???????</option>
-                <option value="active">???????? ??????????</option>
-                <option value="low_balance">???????? 0-2 ???????</option>
-                <option value="no_schedule">??? ?????????? ???????</option>
-                <option value="direction">?? ???????????</option>
-                <option value="branch">?? ???????</option>
+                <option value="all">Все клиенты</option>
+                <option value="active">Активные абонементы</option>
+                <option value="low_balance">Осталось 0-2 занятия</option>
+                <option value="no_schedule">Нет ближайшего занятия</option>
+                <option value="direction">По направлению</option>
+                <option value="branch">По локации</option>
               </select>
               <select name="direction" defaultValue="">
-                <option value="">??????????? ?? ???????</option>
-                <option value="pool">???????</option>
-                <option value="gym">???</option>
-                <option value="massage">??????</option>
+                <option value="">Направление не выбрано</option>
+                <option value="pool">Бассейн</option>
+                <option value="gym">Зал</option>
+                <option value="massage">Массаж</option>
               </select>
               <select name="branch" defaultValue="">
-                <option value="">??????? ?? ???????</option>
+                <option value="">Локация не выбрана</option>
                 <option value="Pool Javakhishvili 28">Pool Javakhishvili 28</option>
                 <option value="Gym Gorgasali 127">Gym Gorgasali 127</option>
               </select>
               <input name="scheduledAt" type="datetime-local" />
-              <textarea name="message" placeholder="????? ???????????" required rows={4} />
-              <button className="wide-action" disabled={busy === "broadcast"} type="submit">????????????? ???????????</button>
+              <textarea name="message" placeholder="Текст уведомления" required rows={4} />
+              <button className="wide-action" disabled={busy === "broadcast"} type="submit">Запланировать уведомление</button>
             </form>
           </section>
 
-          <TaskSection title="??????????????? ???????????" empty="??? ??????????????? ???????????.">
+          <TaskSection title="Запланированные напоминания" empty="Нет запланированных напоминаний.">
             {data.recentReminders.map((reminder) => (
               <article className="admin-item" key={reminder.id}>
                 <div><strong>{reminder.type} - {reminder.status}</strong><p>{reminder.message}</p><small>TG {reminder.client.telegramId} - {new Date(reminder.dueAt).toLocaleString()}</small></div>
@@ -568,7 +568,7 @@ export function AdminPanel({ lang }: { lang: Lang }) {
             ))}
           </TaskSection>
 
-          <TaskSection title="??????? ????????" empty="???????? ???? ???.">
+          <TaskSection title="История кампаний" empty="Кампаний пока нет.">
             {data.recentBroadcasts.map((broadcast) => (
               <article className="admin-item" key={broadcast.id}>
                 <div>
@@ -576,7 +576,7 @@ export function AdminPanel({ lang }: { lang: Lang }) {
                   <p>{broadcast.message}</p>
                   <small>{broadcast.type} - {broadcast.audience}{broadcast.direction ? ` - ${broadcast.direction}` : ""}{broadcast.branch ? ` - ${broadcast.branch}` : ""} - scheduled {broadcast.scheduledAt ? new Date(broadcast.scheduledAt).toLocaleString() : "now"} - sent {broadcast.sentCount} - failed {broadcast.failedCount}</small>
                 </div>
-                {broadcast.status === "SCHEDULED" && <button className="mini-button" onClick={() => void cancelBroadcast(broadcast.id)} type="button">????????</button>}
+                {broadcast.status === "SCHEDULED" && <button className="mini-button" onClick={() => void cancelBroadcast(broadcast.id)} type="button">Отменить</button>}
               </article>
             ))}
           </TaskSection>
